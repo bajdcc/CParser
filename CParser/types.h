@@ -19,6 +19,7 @@ enum lexer_t
     l_double,
     l_operator,
     l_keyword,
+    l_identifier,
     l_string,
     l_comment,
 };
@@ -58,6 +59,7 @@ DEFINE_BASE_TYPE(l_float, float)
 DEFINE_BASE_TYPE(l_double, double)
 DEFINE_BASE_TYPE(l_operator, operator_t)
 DEFINE_BASE_TYPE(l_keyword, keyword_t)
+DEFINE_BASE_TYPE(l_identifier, std::string)
 DEFINE_BASE_TYPE(l_string, std::string)
 DEFINE_BASE_TYPE(l_comment, std::string)
 
