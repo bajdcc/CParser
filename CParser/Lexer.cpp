@@ -8,6 +8,10 @@ CLexer::CLexer(std::string str): str(str)
     assert(length > 0);
 }
 
+CLexer::~CLexer()
+{
+}
+
 #define DEFINE_LEXER_GETTER(t) \
 LEX_T(t) CLexer::get_##t() \
 { \
@@ -28,12 +32,10 @@ DEFINE_LEXER_GETTER(keyword)
 DEFINE_LEXER_GETTER(identifier)
 DEFINE_LEXER_GETTER(string)
 DEFINE_LEXER_GETTER(comment)
+DEFINE_LEXER_GETTER(space)
+DEFINE_LEXER_GETTER(newline)
 
 #undef DEFINE_LEXER_GETTER
-
-CLexer::~CLexer()
-{
-}
 
 lexer_t CLexer::next()
 {
@@ -60,6 +62,7 @@ lexer_t CLexer::next_digit()
         auto s = sm[0].str();
         bags._double = std::atof(s.c_str());
         index += s.length();
+        column += s.length();
         return l_double;
     }
     assert(!"digit not match");
@@ -73,6 +76,7 @@ lexer_t CLexer::next_alpha()
         auto s = sm[0].str();
         bags._identifier = s.c_str();
         index += s.length();
+        column += s.length();
         return l_identifier;
     }
     assert(!"alpha not match");
@@ -83,9 +87,33 @@ lexer_t CLexer::next_space()
 {
     if (std::regex_search(str.cbegin() + index, str.cend(), sm, r_space))
     {
-        auto s = sm[0].str();
-        index += s.length();
-        return l_none;
+        auto m = std::find_if(sm.begin(), sm.end(), [](auto sm) {return 1; });
+        if (m == sm.end()) assert(!"space not match");
+        auto ms = m->str();
+        auto ml = ms.length();
+        index += ml;
+        if (ms[0] == ' ')
+        {
+            bags._space = ml;
+            column += ml;
+            return l_space;
+        }
+        else if (ms[0] == '\r')
+        {
+            bags._newline = ml / 2;
+            column = 1;
+            line += bags._newline;
+            return l_newline;
+        }
+        else if (ms[0] == '\n')
+        {
+            bags._newline = ml;
+            column = 1;
+            line += bags._newline;
+            return l_newline;
+        }
+        assert(!"space not match");
+        return l_error;
     }
     assert(!"space not match");
     return l_error;

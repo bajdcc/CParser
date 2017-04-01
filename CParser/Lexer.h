@@ -27,6 +27,8 @@ public:
         DEFINE_LEXER_GETTER(identifier)
         DEFINE_LEXER_GETTER(string)
         DEFINE_LEXER_GETTER(comment)
+        DEFINE_LEXER_GETTER(space)
+        DEFINE_LEXER_GETTER(newline)
 #undef DEFINE_LEXER_GETTER
 
 public:
@@ -44,6 +46,9 @@ private:
     std::string str;
     int index{ 0 };
     int length{ 0 };
+
+    int line{ 1 };
+    int column{ 1 };
 
     struct
     {
@@ -63,6 +68,8 @@ private:
         DEFINE_LEXER_GETTER(identifier)
         DEFINE_LEXER_GETTER(string)
         DEFINE_LEXER_GETTER(comment)
+        DEFINE_LEXER_GETTER(space)
+        DEFINE_LEXER_GETTER(newline)
 #undef DEFINE_LEXER_GETTER
     } bags;
 
@@ -70,7 +77,7 @@ private:
     std::smatch sm;
     std::regex r_digit{ R"((\d*\.?\d+|\d+\.?\d*)([e][+-]?\d+)?)" };
     std::regex r_alpha{ R"([[:alpha:]_]\w*)" };
-    std::regex r_space{ R"(\s+)" };
+    std::regex r_space{ R"(([ ]+)|((\r\n)+)|(\n+))" };
 };
 
 #endif

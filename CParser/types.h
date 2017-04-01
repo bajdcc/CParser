@@ -22,6 +22,8 @@ enum lexer_t
     l_identifier,
     l_string,
     l_comment,
+    l_space,
+    l_newline,
 };
 
 enum operator_t
@@ -62,6 +64,8 @@ DEFINE_BASE_TYPE(l_keyword, keyword_t)
 DEFINE_BASE_TYPE(l_identifier, std::string)
 DEFINE_BASE_TYPE(l_string, std::string)
 DEFINE_BASE_TYPE(l_comment, std::string)
+DEFINE_BASE_TYPE(l_space, int)
+DEFINE_BASE_TYPE(l_newline, int)
 
 #undef DEFINE_BASE_TYPE
 

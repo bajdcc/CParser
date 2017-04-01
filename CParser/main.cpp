@@ -4,17 +4,20 @@
 #include "stdafx.h"
 #include "Lexer.h"
 
+#define TEST(l, t, v) assert(l.next() == l_##t); assert(lexer.get_##t() == v);
 
 int main()
 {
-    auto str = "ABC 0.2e8 a_";
+    auto str = "ABC \n\n0.2e8  a_\n";
     CLexer lexer(str);
 
-    assert(lexer.next() == l_identifier); assert(lexer.get_identifier() == "ABC");
-    assert(lexer.next() == l_none);
-    assert(lexer.next() == l_double); assert(lexer.get_double() == 0.2e8);
-    assert(lexer.next() == l_none);
-    assert(lexer.next() == l_identifier); assert(lexer.get_identifier() == "a_");
+    TEST(lexer, identifier, "ABC");
+    TEST(lexer, space, 1);
+    TEST(lexer, newline, 2);
+    TEST(lexer, double, 0.2e8);
+    TEST(lexer, space, 2);
+    TEST(lexer, identifier, "a_");
+    TEST(lexer, newline, 1);
 
     return 0;
 }
