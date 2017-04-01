@@ -41,7 +41,7 @@ lexer_t CLexer::next()
 {
     auto c = local();
     type = l_error;
-    if (isalpha(c))
+    if (isalpha(c) || c == '_')
     {
         type = next_alpha();
     }
@@ -144,7 +144,7 @@ lexer_t CLexer::next_space()
 {
     if (std::regex_search(str.cbegin() + index, str.cend(), sm, r_space))
     {
-        auto m = std::find_if(sm.begin(), sm.end(), [](auto sm) {return 1; });
+        auto m = std::find_if(sm.begin(), sm.end(), [](auto) {return true; });
         if (m == sm.end()) assert(!"space not match");
         auto ms = m->str();
         auto ml = ms.length();
@@ -166,8 +166,6 @@ lexer_t CLexer::next_space()
             move(ml, bags._newline, true);
             return l_newline;
         }
-        assert(!"space not match");
-        return l_error;
     }
     assert(!"space not match");
     return l_error;
@@ -178,9 +176,4 @@ int CLexer::local()
     if (index < length)
         return str[index];
     return -1;
-}
-
-void CLexer::match(int ch)
-{
-    assert(local() == ch);
 }

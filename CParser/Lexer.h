@@ -51,7 +51,6 @@ private:
     lexer_t next_space();
 
     int local();
-    void match(int ch);
 
 private:
     string_t str;
@@ -92,7 +91,7 @@ private:
     smatch_t sm;
     regex_t r_digit{ R"((\d*\.?\d+|\d+\.?\d*)([e][+-]?\d+)?)" };
     regex_t r_alpha{ R"([[:alpha:]_]\w*)" };
-    regex_t r_space{ R"(([ ]+)|((\r\n)+)|(\n+))" };
+    regex_t r_space{ R"(([ ]+)|((?:\r\n)+)|(\n+))" };
 };
 
 #endif
