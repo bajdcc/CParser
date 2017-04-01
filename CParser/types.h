@@ -3,6 +3,10 @@
 
 #include <string>
 
+using string_t = std::string;
+using smatch_t = std::smatch;
+using regex_t = std::regex;
+
 enum lexer_t
 {
     l_none,
@@ -24,6 +28,7 @@ enum lexer_t
     l_comment,
     l_space,
     l_newline,
+    l_end,
 };
 
 enum operator_t
@@ -69,6 +74,9 @@ DEFINE_BASE_TYPE(l_newline, int)
 
 #undef DEFINE_BASE_TYPE
 
+const string_t& lexer_typestr(lexer_t);
+
 #define LEX_T(t) base_t<l_##t>::type
+#define LEX_STRING(t) lexer_typestr(t)
 
 #endif

@@ -2,7 +2,7 @@
 #include "Lexer.h"
 
 
-CLexer::CLexer(std::string str): str(str)
+CLexer::CLexer(string_t str): str(str)
 {
     length = str.length();
     assert(length > 0);
@@ -40,19 +40,78 @@ DEFINE_LEXER_GETTER(newline)
 lexer_t CLexer::next()
 {
     auto c = local();
+    type = l_error;
     if (isalpha(c))
     {
-        return next_alpha();
+        type = next_alpha();
     }
     else if (isdigit(c))
     {
-        return next_digit();
+        type = next_digit();
     }
     else if (isspace(c))
     {
-        return next_space();
+        type = next_space();
     }
-    return l_error;
+    return type;
+}
+
+lexer_t CLexer::get_type() const
+{
+    return type;
+}
+
+int CLexer::get_line() const
+{
+    return line;
+}
+
+int CLexer::get_column() const
+{
+    return column;
+}
+
+int CLexer::get_last_line() const
+{
+    return last_line;
+}
+
+int CLexer::get_last_column() const
+{
+    return last_column;
+}
+
+string_t CLexer::current() const
+{
+    switch (type)
+    {
+    case l_space:
+    case l_newline:
+        return "... [" + LEX_STRING(type) + "]";
+    default:
+        break;
+    }
+    return str.substr(last_index, index - last_index);
+}
+
+void CLexer::move(int idx, int inc, bool newline)
+{
+    last_index = index;
+    last_line = line;
+    last_column = column;
+    if (newline)
+    {
+        column = 1;
+        line += inc;
+    }
+    else
+    {
+        if (inc < 0)
+            column += idx;
+        else
+            column += inc;
+    }
+    index += idx;
 }
 
 lexer_t CLexer::next_digit()
@@ -61,8 +120,7 @@ lexer_t CLexer::next_digit()
     {
         auto s = sm[0].str();
         bags._double = std::atof(s.c_str());
-        index += s.length();
-        column += s.length();
+        move(s.length());
         return l_double;
     }
     assert(!"digit not match");
@@ -75,8 +133,7 @@ lexer_t CLexer::next_alpha()
     {
         auto s = sm[0].str();
         bags._identifier = s.c_str();
-        index += s.length();
-        column += s.length();
+        move(s.length());
         return l_identifier;
     }
     assert(!"alpha not match");
@@ -91,25 +148,22 @@ lexer_t CLexer::next_space()
         if (m == sm.end()) assert(!"space not match");
         auto ms = m->str();
         auto ml = ms.length();
-        index += ml;
         if (ms[0] == ' ')
         {
             bags._space = ml;
-            column += ml;
+            move(ml);
             return l_space;
         }
         else if (ms[0] == '\r')
         {
             bags._newline = ml / 2;
-            column = 1;
-            line += bags._newline;
+            move(ml, bags._newline, true);
             return l_newline;
         }
         else if (ms[0] == '\n')
         {
             bags._newline = ml;
-            column = 1;
-            line += bags._newline;
+            move(ml, bags._newline, true);
             return l_newline;
         }
         assert(!"space not match");

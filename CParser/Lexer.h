@@ -7,7 +7,7 @@
 class CLexer
 {
 public:
-    explicit CLexer(std::string str);
+    explicit CLexer(string_t str);
     ~CLexer();
 
     // 外部接口
@@ -33,7 +33,18 @@ public:
 
 public:
     lexer_t next();
+
+    lexer_t get_type() const;
+    int get_line() const;
+    int get_column() const;
+    int get_last_line() const;
+    int get_last_column() const;
+    string_t current() const;
+
 private:
+
+    void move(int idx, int inc = -1, bool newline = false);
+
     // 内部解析
     lexer_t next_digit();
     lexer_t next_alpha();
@@ -43,12 +54,16 @@ private:
     void match(int ch);
 
 private:
-    std::string str;
+    string_t str;
     int index{ 0 };
+    int last_index{ 0 };
     int length{ 0 };
 
+    lexer_t type { l_none };
     int line{ 1 };
     int column{ 1 };
+    int last_line{ 1 };
+    int last_column{ 1 };
 
     struct
     {
@@ -74,10 +89,10 @@ private:
     } bags;
 
     // 正则表达式
-    std::smatch sm;
-    std::regex r_digit{ R"((\d*\.?\d+|\d+\.?\d*)([e][+-]?\d+)?)" };
-    std::regex r_alpha{ R"([[:alpha:]_]\w*)" };
-    std::regex r_space{ R"(([ ]+)|((\r\n)+)|(\n+))" };
+    smatch_t sm;
+    regex_t r_digit{ R"((\d*\.?\d+|\d+\.?\d*)([e][+-]?\d+)?)" };
+    regex_t r_alpha{ R"([[:alpha:]_]\w*)" };
+    regex_t r_space{ R"(([ ]+)|((\r\n)+)|(\n+))" };
 };
 
 #endif

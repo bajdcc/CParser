@@ -4,12 +4,26 @@
 #include "stdafx.h"
 #include "Lexer.h"
 
-#define TEST(l, t, v) assert(l.next() == l_##t); assert(lexer.get_##t() == v);
+#define OUTPUT(l, t) printf("[%03d:%03d] %-12s - %s\n", \
+    l.get_last_line(), \
+    l.get_last_column(), \
+    LEX_STRING(l.get_type()).c_str(), \
+    l.current().c_str());
+
+#define TEST(l, t, v) \
+    assert(l.next() == l_##t); \
+    assert(l.get_##t() == v); \
+    OUTPUT(l, t);
 
 int main()
 {
     auto str = "ABC \n\n0.2e8  a_\n";
+
+    printf("#  ‰»Î \n----[[[\n%s\n----]]]\n", str);
+
     CLexer lexer(str);
+
+    printf("\n# Ω‚Œˆ \n");
 
     TEST(lexer, identifier, "ABC");
     TEST(lexer, space, 1);
