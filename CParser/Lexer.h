@@ -89,7 +89,7 @@ private:
 
     // 正则表达式
     smatch_t sm;
-    regex_t r_digit{ R"((\d*\.?\d+|\d+\.?\d*)([e][+-]?\d+)?)" };
+    regex_t r_digit{ R"(((?:\d*(\.)?\d+|\d+(\.)?\d*)(?:[eE][+-]?\d+)?)([uU])?([fFdDiIlL])?)" };
     regex_t r_alpha{ R"([[:alpha:]_]\w*)" };
     regex_t r_space{ R"(([ ]+)|((?:\r\n)+)|(\n+))" };
 };

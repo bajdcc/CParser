@@ -118,10 +118,74 @@ lexer_t CLexer::next_digit()
 {
     if (std::regex_search(str.cbegin() + index, str.cend(), sm, r_digit))
     {
-        auto s = sm[0].str();
-        bags._double = std::atof(s.c_str());
-        move(s.length());
-        return l_double;
+        auto s = sm[1].str();
+        auto t = sm[5].str();
+        auto type = l_error;
+        if (!t.empty())
+        {
+            auto u = sm[4].str();
+            if (u.empty())
+            {
+                switch (t[0])
+                {
+                case 'F':
+                case 'f':
+                    type = l_float;
+                    bags._float = LEX_T(float)(std::atof(s.c_str()));
+                    break;
+                case 'D':
+                case 'd':
+                    type = l_double;
+                    bags._double = LEX_T(double)(std::atof(s.c_str()));
+                    break;
+                case 'I':
+                case 'i':
+                    type = l_int;
+                    bags._int = LEX_T(int)(std::atol(s.c_str()));
+                    break;
+                case 'L':
+                case 'l':
+                    type = l_long;
+                    bags._long = LEX_T(long)(std::atol(s.c_str()));
+                    break;
+                default:
+                    break;
+                }
+            }
+            else
+            {
+                switch (t[0])
+                {
+                case 'I':
+                case 'i':
+                    type = l_uint;
+                    bags._uint = LEX_T(uint)(std::atof(s.c_str()));
+                    break;
+                case 'L':
+                case 'l':
+                    type = l_ulong;
+                    bags._ulong = LEX_T(ulong)(std::atof(s.c_str()));
+                    break;
+                default:
+                    break;
+                }
+            }
+        }
+        else
+        {
+            if (!sm[2].str().empty() || !sm[3].str().empty())
+            {
+                type = l_double;
+                bags._double = std::atof(s.c_str());
+            }
+            else
+            {
+                type = l_long;
+                bags._long = std::atol(s.c_str());
+            }
+        }
+        move(sm[0].length());
+        return type;
     }
     assert(!"digit not match");
     return l_error;
