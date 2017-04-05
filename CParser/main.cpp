@@ -17,7 +17,7 @@
 
 int main()
 {
-    auto str = "ABC \r\n\n\n.2e8 6e5ul3f1234  a_ _b '\\0''a' '\\'''\\n''\n''\x41' \n";
+    auto str = "ABC \r\n\n\n.2e8 6e5ul3f1234  a_ _b '\\0''a' '\\'''\\n''\x41' \"\"\"abc\" \"\\\"\" \n";
 
     printf("#  ‰»Î \n----[[[\n%s\n----]]]\n", str);
 
@@ -44,8 +44,12 @@ int main()
     TEST(lexer, space, 1);
     TEST(lexer, char, '\'');
     TEST(lexer, char, '\n');
-    TEST(lexer, char, '\n');
     TEST(lexer, char, 'A');
+    TEST(lexer, space, 1);
+    TEST(lexer, string, "");
+    TEST(lexer, string, "abc");
+    TEST(lexer, space, 1);
+    TEST(lexer, string, "\"");
     TEST(lexer, space, 1);
     TEST(lexer, newline, 1);
 

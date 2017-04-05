@@ -57,6 +57,10 @@ lexer_t CLexer::next()
     {
         type = next_char();
     }
+    else if (c == '\"') // ×Ö·û´®
+    {
+        type = next_string();
+    }
     return type;
 }
 
@@ -247,6 +251,8 @@ lexer_t CLexer::next_char()
         {
             bags._char = sm[1].str()[0];
             move(sm[0].length());
+            if (!isprint(bags._char))
+                return l_error;
             return l_char;
         }
         else if (!sm[2].str().empty())
@@ -311,6 +317,86 @@ lexer_t CLexer::next_char()
         }
     }
     assert(!"char not match");
+    return l_error;
+}
+
+lexer_t CLexer::next_string()
+{
+    auto idx = index + 1;
+    bags._string.clear();
+    for (;;)
+    {
+        if (std::regex_search(str.cbegin() + idx, str.cend(), sm, r_string))
+        {
+            idx += sm[0].length();
+            if (!sm[1].str().empty())
+            {
+                auto c = sm[1].str()[0];
+                if (c == '\"')
+                {
+                    move(idx - index);
+                    return l_string;
+                }
+                bags._string += c;
+                if (!isprint(c))
+                    return l_error;
+            }
+            else if (!sm[2].str().empty())
+            {
+                auto type = l_char;
+                switch (sm[2].str()[0])
+                {
+                case 'b':
+                    bags._string += '\b';
+                    break;
+                case 'f':
+                    bags._string += '\f';
+                    break;
+                case 'n':
+                    bags._string += '\n';
+                    break;
+                case 'r':
+                    bags._string += '\r';
+                    break;
+                case 't':
+                    bags._string += '\t';
+                    break;
+                case 'v':
+                    bags._string += '\v';
+                    break;
+                case '\'':
+                    bags._string += '\'';
+                    break;
+                case '\"':
+                    bags._string += '\"';
+                    break;
+                case '\\':
+                    bags._string += '\\';
+                    break;
+                default:
+                    type = l_error;
+                    break;
+                }
+            }
+            else if (!sm[3].str().empty())
+            {
+                auto oct = std::strtol(sm[3].str().c_str(), NULL, 8);
+                bags._string += char(oct);
+            }
+            else if (!sm[4].str().empty())
+            {
+                auto n = std::atoi(sm[4].str().c_str());
+                bags._string += char(n);
+            }
+            else if (!sm[5].str().empty())
+            {
+                auto hex = std::strtol(sm[3].str().c_str(), NULL, 16);
+                bags._string += char(hex);
+            }
+            else break;
+        }
+    }
+    assert(!"string not match");
     return l_error;
 }
 
