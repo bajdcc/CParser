@@ -41,17 +41,21 @@ lexer_t CLexer::next()
 {
     auto c = local();
     type = l_error;
-    if (isalpha(c) || c == '_')
+    if (isalpha(c) || c == '_') // 变量名或关键字
     {
         type = next_alpha();
     }
-    else if (isdigit(c))
+    else if (isdigit(c) || c == '.') // 数字
     {
         type = next_digit();
     }
-    else if (isspace(c))
+    else if (isspace(c)) // 空白字符
     {
         type = next_space();
+    }
+    else if (c == '\'') // 字符
+    {
+        type = next_char();
     }
     return type;
 }
@@ -141,7 +145,7 @@ lexer_t CLexer::next_digit()
                 case 'I':
                 case 'i':
                     type = l_int;
-                    bags._int = LEX_T(int)(std::atol(s.c_str()));
+                    bags._int = LEX_T(int)(std::atoi(s.c_str()));
                     break;
                 case 'L':
                 case 'l':
@@ -180,8 +184,8 @@ lexer_t CLexer::next_digit()
             }
             else
             {
-                type = l_long;
-                bags._long = std::atol(s.c_str());
+                type = l_int;
+                bags._int = std::atoi(s.c_str());
             }
         }
         move(sm[0].length());
@@ -232,6 +236,81 @@ lexer_t CLexer::next_space()
         }
     }
     assert(!"space not match");
+    return l_error;
+}
+
+lexer_t CLexer::next_char()
+{
+    if (std::regex_search(str.cbegin() + index, str.cend(), sm, r_char))
+    {
+        if (!sm[1].str().empty())
+        {
+            bags._char = sm[1].str()[0];
+            move(sm[0].length());
+            return l_char;
+        }
+        else if (!sm[2].str().empty())
+        {
+            auto type = l_char;
+            switch (sm[2].str()[0])
+            {
+            case 'b':
+                bags._char = '\b';
+                break;
+            case 'f':
+                bags._char = '\f';
+                break;
+            case 'n':
+                bags._char = '\n';
+                break;
+            case 'r':
+                bags._char = '\r';
+                break;
+            case 't':
+                bags._char = '\t';
+                break;
+            case 'v':
+                bags._char = '\v';
+                break;
+            case '\'':
+                bags._char = '\'';
+                break;
+            case '\"':
+                bags._char = '\"';
+                break;
+            case '\\':
+                bags._char = '\\';
+                break;
+            default:
+                type = l_error;
+                break;
+            }
+            move(sm[0].length());
+            return type;
+        }
+        else if (!sm[3].str().empty())
+        {
+            auto oct = std::strtol(sm[3].str().c_str(), NULL, 8);
+            bags._char = char(oct);
+            move(sm[0].length());
+            return l_char;
+        }
+        else if (!sm[4].str().empty())
+        {
+            auto n = std::atoi(sm[4].str().c_str());
+            bags._char = char(n);
+            move(sm[0].length());
+            return l_char;
+        }
+        else if (!sm[5].str().empty())
+        {
+            auto hex = std::strtol(sm[3].str().c_str(), NULL, 16);
+            bags._char = char(hex);
+            move(sm[0].length());
+            return l_char;
+        }
+    }
+    assert(!"char not match");
     return l_error;
 }
 

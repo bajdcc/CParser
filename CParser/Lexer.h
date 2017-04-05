@@ -49,6 +49,7 @@ private:
     lexer_t next_digit();
     lexer_t next_alpha();
     lexer_t next_space();
+    lexer_t next_char();
 
     int local();
 
@@ -89,6 +90,7 @@ private:
 
     // 正则表达式
     smatch_t sm;
+    regex_t r_char{ R"('(?:([^'"\\])|(?:\\(?:([bfnrtv'"\\])|(?:0(\d{1,2}))|(\d)|(?:x([[:xdigit:]]{1,2})))))')" };
     regex_t r_digit{ R"(((?:\d*(\.)?\d+|\d+(\.)?\d*)(?:[eE][+-]?\d+)?)([uU])?([fFdDiIlL])?)" };
     regex_t r_alpha{ R"([[:alpha:]_]\w*)" };
     regex_t r_space{ R"(([ ]+)|((?:\r\n)+)|(\n+))" };
