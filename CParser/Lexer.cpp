@@ -127,14 +127,12 @@ lexer_t CLexer::next_digit()
     if (std::regex_search(str.cbegin() + index, str.cend(), sm, r_digit))
     {
         auto s = sm[1].str();
-        auto t = sm[5].str();
         auto type = l_error;
-        if (!t.empty())
+        if (sm[5].matched)
         {
-            auto u = sm[4].str();
-            if (u.empty())
+            if (!sm[4].matched)
             {
-                switch (t[0])
+                switch (sm[5].str()[0])
                 {
                 case 'F':
                 case 'f':
@@ -162,7 +160,7 @@ lexer_t CLexer::next_digit()
             }
             else
             {
-                switch (t[0])
+                switch (sm[5].str()[0])
                 {
                 case 'I':
                 case 'i':
@@ -181,7 +179,7 @@ lexer_t CLexer::next_digit()
         }
         else
         {
-            if (!sm[2].str().empty() || !sm[3].str().empty())
+            if (sm[2].matched || sm[3].matched)
             {
                 type = l_double;
                 bags._double = std::atof(s.c_str());
@@ -216,9 +214,7 @@ lexer_t CLexer::next_space()
 {
     if (std::regex_search(str.cbegin() + index, str.cend(), sm, r_space))
     {
-        auto m = std::find_if(sm.begin(), sm.end(), [](auto) {return true; });
-        if (m == sm.end()) assert(!"space not match");
-        auto ms = m->str();
+        auto ms = sm[0].str();
         auto ml = ms.length();
         if (ms[0] == ' ')
         {
@@ -247,7 +243,7 @@ lexer_t CLexer::next_char()
 {
     if (std::regex_search(str.cbegin() + index, str.cend(), sm, r_char))
     {
-        if (!sm[1].str().empty())
+        if (sm[1].matched)
         {
             bags._char = sm[1].str()[0];
             move(sm[0].length());
@@ -255,7 +251,7 @@ lexer_t CLexer::next_char()
                 return l_error;
             return l_char;
         }
-        else if (!sm[2].str().empty())
+        else if (sm[2].matched)
         {
             auto type = l_char;
             switch (sm[2].str()[0])
@@ -294,21 +290,21 @@ lexer_t CLexer::next_char()
             move(sm[0].length());
             return type;
         }
-        else if (!sm[3].str().empty())
+        else if (sm[3].matched)
         {
             auto oct = std::strtol(sm[3].str().c_str(), NULL, 8);
             bags._char = char(oct);
             move(sm[0].length());
             return l_char;
         }
-        else if (!sm[4].str().empty())
+        else if (sm[4].matched)
         {
             auto n = std::atoi(sm[4].str().c_str());
             bags._char = char(n);
             move(sm[0].length());
             return l_char;
         }
-        else if (!sm[5].str().empty())
+        else if (sm[5].matched)
         {
             auto hex = std::strtol(sm[3].str().c_str(), NULL, 16);
             bags._char = char(hex);
@@ -329,7 +325,7 @@ lexer_t CLexer::next_string()
         if (std::regex_search(str.cbegin() + idx, str.cend(), sm, r_string))
         {
             idx += sm[0].length();
-            if (!sm[1].str().empty())
+            if (sm[1].matched)
             {
                 auto c = sm[1].str()[0];
                 if (c == '\"')
@@ -341,7 +337,7 @@ lexer_t CLexer::next_string()
                 if (!isprint(c))
                     return l_error;
             }
-            else if (!sm[2].str().empty())
+            else if (sm[2].matched)
             {
                 auto type = l_char;
                 switch (sm[2].str()[0])
@@ -378,17 +374,17 @@ lexer_t CLexer::next_string()
                     break;
                 }
             }
-            else if (!sm[3].str().empty())
+            else if (sm[3].matched)
             {
                 auto oct = std::strtol(sm[3].str().c_str(), NULL, 8);
                 bags._string += char(oct);
             }
-            else if (!sm[4].str().empty())
+            else if (sm[4].matched)
             {
                 auto n = std::atoi(sm[4].str().c_str());
                 bags._string += char(n);
             }
-            else if (!sm[5].str().empty())
+            else if (sm[5].matched)
             {
                 auto hex = std::strtol(sm[3].str().c_str(), NULL, 16);
                 bags._string += char(hex);
