@@ -216,7 +216,7 @@ lexer_t CLexer::next_space()
     {
         auto ms = sm[0].str();
         auto ml = ms.length();
-        if (ms[0] == ' ')
+        if (ms[0] == ' ' || ms[0] == '\t')
         {
             bags._space = ml;
             move(ml);
