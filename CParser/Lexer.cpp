@@ -37,15 +37,22 @@ DEFINE_LEXER_GETTER(newline)
 
 #undef DEFINE_LEXER_GETTER
 
+bool match_pred(smatch_t::value_type sm)
+{
+    return sm.matched;
+}
+
 lexer_t CLexer::next()
 {
     auto c = local();
+    if (c == -1)
+        return l_end;
     type = l_error;
     if (isalpha(c) || c == '_') // 变量名或关键字
     {
         type = next_alpha();
     }
-    else if (isdigit(c) || c == '.') // 数字
+    else if (isdigit(c)) // 数字
     {
         type = next_digit();
     }
@@ -72,6 +79,10 @@ lexer_t CLexer::next()
         {
             type = next_operator();
         }
+    }
+    else
+    {
+        type = next_operator();
     }
     return type;
 }
@@ -108,7 +119,9 @@ string_t CLexer::current() const
     case l_space:
     case l_newline:
     case l_comment:
-        return "... [" + LEX_STRING(type) + "]";
+        return "...\t[" + LEX_STRING(type) + "]";
+    case l_operator:
+        return str.substr(last_index, index - last_index) + "\t[" + OPERATOR_STRING(bags._operator) + "]";
     default:
         break;
     }
@@ -151,11 +164,11 @@ lexer_t CLexer::next_digit()
     {
         auto s = sm[1].str();
         auto type = l_error;
-        if (sm[5].matched)
+        if (sm[4].matched)
         {
-            if (!sm[4].matched)
+            if (!sm[3].matched)
             {
-                switch (sm[5].str()[0])
+                switch (sm[4].str()[0])
                 {
                 case 'F': // 100F
                 case 'f': // 100f
@@ -183,7 +196,7 @@ lexer_t CLexer::next_digit()
             }
             else
             {
-                switch (sm[5].str()[0])
+                switch (sm[4].str()[0])
                 {
                 case 'I': // 100UI 100uI
                 case 'i': // 100Ui 100ui
@@ -200,14 +213,14 @@ lexer_t CLexer::next_digit()
                 }
             }
         }
-        else if (sm[6].matched) // 0x12345678
+        else if (sm[5].matched) // 0x12345678
         {
             type = l_uint;
-            bags._uint = std::atoi(sm[6].str().c_str());
+            bags._uint = std::atoi(sm[5].str().c_str());
         }
         else
         {
-            if (sm[2].matched || sm[3].matched) // double <- contains dot '.'
+            if (sm[2].matched) // double <- contains dot '.'
             {
                 type = l_double;
                 bags._double = std::atof(s.c_str());
@@ -230,9 +243,20 @@ lexer_t CLexer::next_alpha()
     if (std::regex_search(str.cbegin() + index, str.cend(), sm, r_alpha))
     {
         auto s = sm[0].str();
-        bags._identifier = s.c_str();
-        move(s.length());
-        return l_identifier;
+        if (std::regex_search(s.cbegin(), s.cend(), sm, r_keyword))
+        {
+            auto b = sm.begin() + 1;
+            auto i = std::distance(b, std::find_if(b, sm.end(), match_pred));
+            bags._keyword = (keyword_t)(i + 1); 
+            move(s.length());
+            return l_keyword;
+        }
+        else
+        {
+            bags._identifier = s.c_str();
+            move(s.length());
+            return l_identifier;
+        }
     }
     assert(!"alpha not match");
     return l_error;
@@ -449,6 +473,25 @@ lexer_t CLexer::next_comment()
 
 lexer_t CLexer::next_operator()
 {
+    for (auto i = 2; i >= 0; i--)
+    {
+        if (index + i >= length)
+            continue;
+        if (std::regex_search(str.cbegin() + index, str.cbegin() + index + i + 1, sm, r_operator[i]))
+        {
+            assert(sm.position(0) == 0);
+            auto s = sm[0].str();
+            auto b = sm.begin() + 1;
+            auto j = std::distance(b, std::find_if(b, sm.end(), match_pred));
+            j += lexer_operator_start_idx(i + 1) - 1;
+            bags._operator = (operator_t)(j + 1);
+            move(s.length());
+            return l_operator;
+        }
+    }
+    // ignore error
+    // assert(!"operator not match");
+    move(1);
     return l_error;
 }
 
@@ -462,6 +505,6 @@ int CLexer::local()
 int CLexer::local(int offset)
 {
     if (index + offset < length)
-        return str[index];
+        return str[index + offset];
     return -1;
 }

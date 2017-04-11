@@ -17,7 +17,7 @@
 
 int main()
 {
-    auto str = "ABC \r\n0x123\n\n.2e8 6e5ul3f1234  a_\t_b '\\0''a' '\\'''\\n''\x41' \"\"\"abc\" \"\\\"\" \n//\n//345\n/**//*ab\nc*/";
+    auto str = "ABC \r\n0x123\n\n0.2e8 6e5ul3f1234  a_\t_b '\\0''a' '\\'''\\n''\x41' \"\"\"abc\" \"\\\"\" \n//\n//345\n/**//*ab\nc*//";
 
     printf("#  ‰»Î \n----[[[\n%s\n----]]]\n", str);
 
@@ -59,6 +59,26 @@ int main()
     TEST(lexer, newline, 1);
     TEST(lexer, comment, "");
     TEST(lexer, comment, "ab\nc");
+    TEST(lexer, operator, op_divide);
+
+    std::cout << std::endl << std::endl << std::endl;
+
+    {
+        std::ifstream iff(R"(..\test\json11.cpp)");
+        std::ostringstream os;
+        os << iff.rdbuf();
+        CLexer l(os.str());
+
+        while (l.next() != l_end)
+        {
+            printf("[%03d:%03d] %-12s - %s\n", \
+                l.get_last_line(), \
+                l.get_last_column(), \
+                LEX_STRING(l.get_type()).c_str(), \
+                l.current().c_str());
+        }
+    }
+    
 
     return 0;
 }
