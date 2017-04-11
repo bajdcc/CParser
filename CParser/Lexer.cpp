@@ -61,6 +61,18 @@ lexer_t CLexer::next()
     {
         type = next_string();
     }
+    else if (c == '/') // ×¢ÊÍ
+    {
+        auto c2 = local(1);
+        if (c2 == '/' || c2 == '*') // ×¢ÊÍ
+        {
+            type = next_comment();
+        }
+        else // ²Ù×÷·û
+        {
+            type = next_operator();
+        }
+    }
     return type;
 }
 
@@ -95,6 +107,7 @@ string_t CLexer::current() const
     {
     case l_space:
     case l_newline:
+    case l_comment:
         return "... [" + LEX_STRING(type) + "]";
     default:
         break;
@@ -124,7 +137,17 @@ void CLexer::move(int idx, int inc, bool newline)
 
 lexer_t CLexer::next_digit()
 {
-    if (std::regex_search(str.cbegin() + index, str.cend(), sm, r_digit))
+    if (std::regex_search(str.cbegin() + index, str.cend(), sm, r_hex))
+    {
+        if (sm[1].matched)
+        {
+            auto s = sm[1].str();
+            bags._uint = std::strtol(s.c_str(), NULL, 16);
+            move(sm[0].length());
+            return l_uint;
+        }
+    }
+    else if (std::regex_search(str.cbegin() + index, str.cend(), sm, r_digit))
     {
         auto s = sm[1].str();
         auto type = l_error;
@@ -134,23 +157,23 @@ lexer_t CLexer::next_digit()
             {
                 switch (sm[5].str()[0])
                 {
-                case 'F':
-                case 'f':
+                case 'F': // 100F
+                case 'f': // 100f
                     type = l_float;
                     bags._float = LEX_T(float)(std::atof(s.c_str()));
                     break;
-                case 'D':
-                case 'd':
+                case 'D': // 100D
+                case 'd': // 100d
                     type = l_double;
                     bags._double = LEX_T(double)(std::atof(s.c_str()));
                     break;
-                case 'I':
-                case 'i':
+                case 'I': // 100I
+                case 'i': // 100i
                     type = l_int;
                     bags._int = LEX_T(int)(std::atoi(s.c_str()));
                     break;
-                case 'L':
-                case 'l':
+                case 'L': // 100L
+                case 'l': // 100l
                     type = l_long;
                     bags._long = LEX_T(long)(std::atol(s.c_str()));
                     break;
@@ -162,13 +185,13 @@ lexer_t CLexer::next_digit()
             {
                 switch (sm[5].str()[0])
                 {
-                case 'I':
-                case 'i':
+                case 'I': // 100UI 100uI
+                case 'i': // 100Ui 100ui
                     type = l_uint;
                     bags._uint = LEX_T(uint)(std::atof(s.c_str()));
                     break;
-                case 'L':
-                case 'l':
+                case 'L': // 100UL 100uL
+                case 'l': // 100Ul 100ul
                     type = l_ulong;
                     bags._ulong = LEX_T(ulong)(std::atof(s.c_str()));
                     break;
@@ -177,14 +200,19 @@ lexer_t CLexer::next_digit()
                 }
             }
         }
+        else if (sm[6].matched) // 0x12345678
+        {
+            type = l_uint;
+            bags._uint = std::atoi(sm[6].str().c_str());
+        }
         else
         {
-            if (sm[2].matched || sm[3].matched)
+            if (sm[2].matched || sm[3].matched) // double <- contains dot '.'
             {
                 type = l_double;
                 bags._double = std::atof(s.c_str());
             }
-            else
+            else // int <- default
             {
                 type = l_int;
                 bags._int = std::atoi(s.c_str());
@@ -216,19 +244,19 @@ lexer_t CLexer::next_space()
     {
         auto ms = sm[0].str();
         auto ml = ms.length();
-        if (ms[0] == ' ' || ms[0] == '\t')
+        if (ms[0] == ' ' || ms[0] == '\t') // space or tab
         {
             bags._space = ml;
             move(ml);
             return l_space;
         }
-        else if (ms[0] == '\r')
+        else if (ms[0] == '\r') // \r\n
         {
             bags._newline = ml / 2;
             move(ml, bags._newline, true);
             return l_newline;
         }
-        else if (ms[0] == '\n')
+        else if (ms[0] == '\n') // \n
         {
             bags._newline = ml;
             move(ml, bags._newline, true);
@@ -243,7 +271,7 @@ lexer_t CLexer::next_char()
 {
     if (std::regex_search(str.cbegin() + index, str.cend(), sm, r_char))
     {
-        if (sm[1].matched)
+        if (sm[1].matched) // like 'a'
         {
             bags._char = sm[1].str()[0];
             move(sm[0].length());
@@ -254,7 +282,7 @@ lexer_t CLexer::next_char()
         else if (sm[2].matched)
         {
             auto type = l_char;
-            switch (sm[2].str()[0])
+            switch (sm[2].str()[0]) // like \r, \n, ...
             {
             case 'b':
                 bags._char = '\b';
@@ -290,21 +318,21 @@ lexer_t CLexer::next_char()
             move(sm[0].length());
             return type;
         }
-        else if (sm[3].matched)
+        else if (sm[3].matched) // like '\0111'
         {
             auto oct = std::strtol(sm[3].str().c_str(), NULL, 8);
             bags._char = char(oct);
             move(sm[0].length());
             return l_char;
         }
-        else if (sm[4].matched)
+        else if (sm[4].matched) // like '\8'
         {
             auto n = std::atoi(sm[4].str().c_str());
             bags._char = char(n);
             move(sm[0].length());
             return l_char;
         }
-        else if (sm[5].matched)
+        else if (sm[5].matched) // like '\xff'
         {
             auto hex = std::strtol(sm[3].str().c_str(), NULL, 16);
             bags._char = char(hex);
@@ -325,10 +353,10 @@ lexer_t CLexer::next_string()
         if (std::regex_search(str.cbegin() + idx, str.cend(), sm, r_string))
         {
             idx += sm[0].length();
-            if (sm[1].matched)
+            if (sm[1].matched) // like 'a'
             {
                 auto c = sm[1].str()[0];
-                if (c == '\"')
+                if (c == '\"') // match end '"'
                 {
                     move(idx - index);
                     return l_string;
@@ -337,7 +365,7 @@ lexer_t CLexer::next_string()
                 if (!isprint(c))
                     return l_error;
             }
-            else if (sm[2].matched)
+            else if (sm[2].matched) // like \r, \n, ...
             {
                 auto type = l_char;
                 switch (sm[2].str()[0])
@@ -374,17 +402,17 @@ lexer_t CLexer::next_string()
                     break;
                 }
             }
-            else if (sm[3].matched)
+            else if (sm[3].matched) // like '\0111'
             {
                 auto oct = std::strtol(sm[3].str().c_str(), NULL, 8);
                 bags._string += char(oct);
             }
-            else if (sm[4].matched)
+            else if (sm[4].matched) // like '\8'
             {
                 auto n = std::atoi(sm[4].str().c_str());
                 bags._string += char(n);
             }
-            else if (sm[5].matched)
+            else if (sm[5].matched) // like '\xff'
             {
                 auto hex = std::strtol(sm[3].str().c_str(), NULL, 16);
                 bags._string += char(hex);
@@ -396,9 +424,44 @@ lexer_t CLexer::next_string()
     return l_error;
 }
 
+lexer_t CLexer::next_comment()
+{
+    if (std::regex_search(str.cbegin() + index, str.cend(), sm, r_comment))
+    {
+        auto ms = sm[0].str();
+        auto ml = ms.length();
+        if (sm[1].matched) // comment like '// ...'
+        {
+            bags._comment = sm[1].str();
+            move(ml);
+            return l_comment;
+        }
+        else if (sm[2].matched) // comment like '/* ... */'
+        {
+            bags._comment = sm[2].str();
+            move(ml, std::count(bags._comment.begin(), bags._comment.end(), '\n'), true); // check new line
+            return l_comment;
+        }
+    }
+    assert(!"comment not match");
+    return l_error;
+}
+
+lexer_t CLexer::next_operator()
+{
+    return l_error;
+}
+
 int CLexer::local()
 {
     if (index < length)
+        return str[index];
+    return -1;
+}
+
+int CLexer::local(int offset)
+{
+    if (index + offset < length)
         return str[index];
     return -1;
 }

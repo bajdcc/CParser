@@ -17,7 +17,7 @@
 
 int main()
 {
-    auto str = "ABC \r\n\n\n.2e8 6e5ul3f1234  a_\t_b '\\0''a' '\\'''\\n''\x41' \"\"\"abc\" \"\\\"\" \n";
+    auto str = "ABC \r\n0x123\n\n.2e8 6e5ul3f1234  a_\t_b '\\0''a' '\\'''\\n''\x41' \"\"\"abc\" \"\\\"\" \n//\n//345\n/**//*ab\nc*/";
 
     printf("#  ‰»Î \n----[[[\n%s\n----]]]\n", str);
 
@@ -28,6 +28,7 @@ int main()
     TEST(lexer, identifier, "ABC");
     TEST(lexer, space, 1);
     TEST(lexer, newline, 1);
+    TEST(lexer, uint, 0x123);
     TEST(lexer, newline, 2);
     TEST(lexer, double, .2e8);
     TEST(lexer, space, 1);
@@ -52,6 +53,12 @@ int main()
     TEST(lexer, string, "\"");
     TEST(lexer, space, 1);
     TEST(lexer, newline, 1);
+    TEST(lexer, comment, "");
+    TEST(lexer, newline, 1);
+    TEST(lexer, comment, "345");
+    TEST(lexer, newline, 1);
+    TEST(lexer, comment, "");
+    TEST(lexer, comment, "ab\nc");
 
     return 0;
 }

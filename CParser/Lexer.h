@@ -51,8 +51,11 @@ private:
     lexer_t next_space();
     lexer_t next_char();
     lexer_t next_string();
+    lexer_t next_comment();
+    lexer_t next_operator();
 
     int local();
+    int local(int offset);
 
 private:
     string_t str;
@@ -91,11 +94,13 @@ private:
 
     // 正则表达式
     smatch_t sm;
-    regex_t r_string{ R"(([^\\])|(?:\\(?:([bfnrtv'"\\])|(?:0(\d{1,2}))|(\d)|(?:x([:xdigit:]{1,2})))))" };
-    regex_t r_char{ R"('(?:([^'"\\])|(?:\\(?:([bfnrtv'"\\])|(?:0(\d{1,2}))|(\d)|(?:x([:xdigit:]{1,2})))))')" };
-    regex_t r_digit{ R"(((?:\d*(\.)?\d+|\d+(\.)?\d*)(?:[eE][+-]?\d+)?)([uU])?([fFdDiIlL])?)" };
-    regex_t r_alpha{ R"([[:alpha:]_]\w*)" };
-    regex_t r_space{ R"(([ ]+)|((?:\r\n)+)|(\n+))" };
+    regex_t r_string{ R"(([^\\])|(?:\\(?:([bfnrtv'"\\])|(?:0(\d{1,2}))|(\d)|(?:x([[:xdigit:]]{1,2})))))", std::regex::ECMAScript | std::regex::optimize };
+    regex_t r_char{ R"('(?:([^'"\\])|(?:\\(?:([bfnrtv'"\\])|(?:0(\d{1,2}))|(\d)|(?:x([[:xdigit:]]{1,2})))))')", std::regex::ECMAScript | std::regex::optimize };
+    regex_t r_digit{ R"(((?:\d*(\.)?\d+|\d+(\.)?\d*)(?:[eE][+-]?\d+)?)([uU])?([fFdDiIlL])?)", std::regex::ECMAScript | std::regex::optimize };
+    regex_t r_alpha{ R"([[:alpha:]_]\w*)", std::regex::ECMAScript | std::regex::optimize };
+    regex_t r_space{ R"(([ ]+)|((?:\r\n)+)|(\n+))", std::regex::ECMAScript | std::regex::optimize };
+    regex_t r_comment{ R"((?://([^\r\n]*))|(?:/\*([[:print:]\n]*?)\*/))", std::regex::ECMAScript | std::regex::optimize };
+    regex_t r_hex{ R"(0x([[:xdigit:]]{1,8}))", std::regex::ECMAScript | std::regex::optimize };
 };
 
 #endif
