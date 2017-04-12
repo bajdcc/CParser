@@ -479,7 +479,6 @@ lexer_t CLexer::next_operator()
             continue;
         if (std::regex_search(str.cbegin() + index, str.cbegin() + index + i + 1, sm, r_operator[i]))
         {
-            assert(sm.position(0) == 0);
             auto s = sm[0].str();
             auto b = sm.begin() + 1;
             auto j = std::distance(b, std::find_if(b, sm.end(), match_pred));

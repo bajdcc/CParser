@@ -83,9 +83,9 @@ string_t lexer_keyword_regex()
     string_t str;
     for (auto i = k__start + 1; i < k__end; i++)
     {
-        str += "(";
+        str += "(^";
         str += keyword_string_list[i];
-        str += ")|";
+        str += "$)|";
     }
     str.erase(str.length() - 1);
     return str;
@@ -283,9 +283,9 @@ string_t lexer_operator_regex(int len)
     string_t str;
     for (auto i = op_len_start_idx[len]; i < op_len_start_idx[len + 1]; i++)
     {
-        str += "(";
+        str += "(^";
         str += operator_esc_string_list[i];
-        str += ")|";
+        str += "$)|";
     }
     str.erase(str.length() - 1);
     return str;

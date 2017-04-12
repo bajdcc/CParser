@@ -17,7 +17,7 @@
 
 int main()
 {
-    auto str = "ABC \r\n0x123\n\n0.2e8 6e5ul3f1234  a_\t_b '\\0''a' '\\'''\\n''\x41' \"\"\"abc\" \"\\\"\" \n//\n//345\n/**//*ab\nc*//";
+    auto str = "ABC \r\n0x123\n\n0.2e8 6e5ul3f1234  a_\t_b '\\0''a' '\\'''\\n''\x41' \"\"\"abc\" \"\\\"\" \n//\n//345\n/**//*ab\nc*//bool";
 
     printf("#  ‰»Î \n----[[[\n%s\n----]]]\n", str);
 
@@ -60,6 +60,7 @@ int main()
     TEST(lexer, comment, "");
     TEST(lexer, comment, "ab\nc");
     TEST(lexer, operator, op_divide);
+    TEST(lexer, keyword, k_bool);
 
     std::cout << std::endl << std::endl << std::endl;
 
