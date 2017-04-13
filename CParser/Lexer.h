@@ -44,6 +44,7 @@ private:
     std::vector<err_record_t> records;
 
     lexer_t record_error(error_t error);
+    lexer_t expect(int start, error_t error, const regex_t& re, int skip);
 
 public:
     lexer_t next();

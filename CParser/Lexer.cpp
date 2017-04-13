@@ -56,6 +56,21 @@ lexer_t CLexer::record_error(error_t error)
     return l_error;
 }
 
+lexer_t CLexer::expect(int start, error_t error, const regex_t& re, int skip)
+{
+    if (std::regex_search(str.cbegin() + index + start, str.cend(), sm, re)) // handle error
+    {
+        if (sm[0].matched)
+        {
+            auto ml = sm[0].length();
+            move(ml);
+            return record_error(error);
+        }
+    }
+    move(skip); // move to end
+    return record_error(error);
+}
+
 lexer_t CLexer::next()
 {
     auto c = local();
@@ -288,13 +303,13 @@ lexer_t CLexer::next_space()
             move(ml);
             return l_space;
         }
-        else if (ms[0] == '\r') // \r\n
+        if (ms[0] == '\r') // \r\n
         {
             bags._newline = ml / 2;
             move(ml, bags._newline, true);
             return l_newline;
         }
-        else if (ms[0] == '\n') // \n
+        if (ms[0] == '\n') // \n
         {
             bags._newline = ml;
             move(ml, bags._newline, true);
@@ -317,7 +332,7 @@ lexer_t CLexer::next_char()
                 return l_error;
             return l_char;
         }
-        else if (sm[2].matched)
+        if (sm[2].matched)
         {
             auto type = l_char;
             switch (sm[2].str()[0]) // like \r, \n, ...
@@ -356,21 +371,21 @@ lexer_t CLexer::next_char()
             move(sm[0].length());
             return type;
         }
-        else if (sm[3].matched) // like '\0111'
+        if (sm[3].matched) // like '\0111'
         {
             auto oct = std::strtol(sm[3].str().c_str(), NULL, 8);
             bags._char = char(oct);
             move(sm[0].length());
             return l_char;
         }
-        else if (sm[4].matched) // like '\8'
+        if (sm[4].matched) // like '\8'
         {
             auto n = std::atoi(sm[4].str().c_str());
             bags._char = char(n);
             move(sm[0].length());
             return l_char;
         }
-        else if (sm[5].matched) // like '\xff'
+        if (sm[5].matched) // like '\xff'
         {
             auto hex = std::strtol(sm[3].str().c_str(), NULL, 16);
             bags._char = char(hex);
@@ -378,17 +393,7 @@ lexer_t CLexer::next_char()
             return l_char;
         }
     }
-    if (std::regex_search(str.cbegin() + index + 1, str.cend(), sm, r_expect_nonchar)) // handle error
-    {
-        if (sm[0].matched)
-        {
-            auto ml = sm[0].length();
-            move(ml);
-            return record_error(e_invalid_char);
-        }
-    }
-    move(length - index); // move to end
-    return record_error(e_invalid_char);
+    return expect(1, e_invalid_char, r_expect_nonchar, length - index);
 }
 
 lexer_t CLexer::next_string()
@@ -470,17 +475,7 @@ lexer_t CLexer::next_string()
             else break;
         }
     }
-    if (std::regex_search(str.cbegin() + index + 1, str.cend(), sm, r_expect_nonstr)) // handle error
-    {
-        if (sm[0].matched)
-        {
-            auto ml = sm[0].length();
-            move(ml);
-            return record_error(e_invalid_string);
-        }
-    }
-    move(length - index); // move to end
-    return record_error(e_invalid_string);
+    return expect(1, e_invalid_string, r_expect_nonstr, length - index);
 }
 
 lexer_t CLexer::next_comment()
@@ -495,7 +490,7 @@ lexer_t CLexer::next_comment()
             move(ml);
             return l_comment;
         }
-        else if (sm[2].matched) // comment like '/* ... */'
+        if (sm[2].matched) // comment like '/* ... */'
         {
             bags._comment = sm[2].str();
             move(ml, std::count(bags._comment.begin(), bags._comment.end(), '\n'), true); // check new line
