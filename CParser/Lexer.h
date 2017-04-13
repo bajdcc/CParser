@@ -29,7 +29,21 @@ public:
         DEFINE_LEXER_GETTER(comment)
         DEFINE_LEXER_GETTER(space)
         DEFINE_LEXER_GETTER(newline)
+        DEFINE_LEXER_GETTER(error)
 #undef DEFINE_LEXER_GETTER
+
+public:
+    struct err_record_t
+    {
+        int line, column;
+        int start_idx, end_idx;
+        error_t err;
+    };
+
+private:
+    std::vector<err_record_t> records;
+
+    lexer_t record_error(error_t error);
 
 public:
     lexer_t next();
@@ -89,6 +103,7 @@ private:
         DEFINE_LEXER_GETTER(comment)
         DEFINE_LEXER_GETTER(space)
         DEFINE_LEXER_GETTER(newline)
+        DEFINE_LEXER_GETTER(error)
 #undef DEFINE_LEXER_GETTER
     } bags;
 
@@ -96,7 +111,7 @@ private:
     smatch_t sm;
     regex_t r_string{ R"(([^\\])|(?:\\(?:([bfnrtv'"\\])|(?:0(\d{1,2}))|(\d)|(?:x([[:xdigit:]]{1,2})))))", std::regex::ECMAScript | std::regex::optimize };
     regex_t r_char{ R"('(?:([^'"\\])|(?:\\(?:([bfnrtv'"\\])|(?:0(\d{1,2}))|(\d)|(?:x([[:xdigit:]]{1,2})))))')", std::regex::ECMAScript | std::regex::optimize };
-    regex_t r_digit{ R"(((?:\d+(\.)?\d*)(?:[eE][+-]?\d+)?)([uU])?([fFdDiIlL])?)", std::regex::ECMAScript | std::regex::optimize };
+    regex_t r_digit{ R"(^((?:\d+(\.)?\d*)(?:[eE][+-]?\d+)?)([uU])?([fFdDiIlL])?)", std::regex::ECMAScript | std::regex::optimize };
     regex_t r_alpha{ R"([[:alpha:]_]\w*)", std::regex::ECMAScript | std::regex::optimize };
     regex_t r_space{ R"(([ ]+)|((?:\r\n)+)|(\n+))", std::regex::ECMAScript | std::regex::optimize };
     regex_t r_comment{ R"((?://([^\r\n]*))|(?:/\*([[:print:]\n]*?)\*/))", std::regex::ECMAScript | std::regex::optimize };
@@ -108,6 +123,9 @@ private:
         regex_t{ lexer_operator_regex(2), std::regex::ECMAScript | std::regex::optimize },
         regex_t{ lexer_operator_regex(3), std::regex::ECMAScript | std::regex::optimize }
     };
+
+    regex_t r_expect_nonchar{ R"(^[[:alnum:]\\]+)", std::regex::ECMAScript | std::regex::optimize };
+    regex_t r_expect_nonstr{ R"(^[[:alnum:]\\ ]+)", std::regex::ECMAScript | std::regex::optimize };
 };
 
 #endif

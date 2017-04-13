@@ -290,3 +290,20 @@ string_t lexer_operator_regex(int len)
     str.erase(str.length() - 1);
     return str;
 }
+
+string_t err_string_list[] =
+{
+    "@START",
+    "invalid character",
+    "invalid operator",
+    "invalid comment",
+    "invalid digit",
+    "invalid string",
+    "@END",
+};
+
+const string_t& lexer_errstr(error_t type)
+{
+    assert(type > e__start && type < e__end);
+    return err_string_list[type];
+}

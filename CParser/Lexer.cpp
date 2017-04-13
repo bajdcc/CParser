@@ -34,12 +34,26 @@ DEFINE_LEXER_GETTER(string)
 DEFINE_LEXER_GETTER(comment)
 DEFINE_LEXER_GETTER(space)
 DEFINE_LEXER_GETTER(newline)
+DEFINE_LEXER_GETTER(error)
 
 #undef DEFINE_LEXER_GETTER
 
 bool match_pred(smatch_t::value_type sm)
 {
     return sm.matched;
+}
+
+lexer_t CLexer::record_error(error_t error)
+{
+    err_record_t err;
+    err.line = last_line;
+    err.column = last_column;
+    err.start_idx = last_index;
+    err.end_idx = index;
+    err.err = error;
+    records.push_back(err);
+    bags._error = error;
+    return l_error;
 }
 
 lexer_t CLexer::next()
@@ -234,7 +248,7 @@ lexer_t CLexer::next_digit()
         move(sm[0].length());
         return type;
     }
-    assert(!"digit not match");
+    assert(!"digit not match"); // cannot reach
     return l_error;
 }
 
@@ -258,7 +272,7 @@ lexer_t CLexer::next_alpha()
             return l_identifier;
         }
     }
-    assert(!"alpha not match");
+    assert(!"alpha not match"); // cannot reach
     return l_error;
 }
 
@@ -287,7 +301,7 @@ lexer_t CLexer::next_space()
             return l_newline;
         }
     }
-    assert(!"space not match");
+    assert(!"space not match"); // cannot reach
     return l_error;
 }
 
@@ -364,8 +378,17 @@ lexer_t CLexer::next_char()
             return l_char;
         }
     }
-    assert(!"char not match");
-    return l_error;
+    if (std::regex_search(str.cbegin() + index + 1, str.cend(), sm, r_expect_nonchar)) // handle error
+    {
+        if (sm[0].matched)
+        {
+            auto ml = sm[0].length();
+            move(ml);
+            return record_error(e_invalid_char);
+        }
+    }
+    move(length - index); // move to end
+    return record_error(e_invalid_char);
 }
 
 lexer_t CLexer::next_string()
@@ -387,7 +410,10 @@ lexer_t CLexer::next_string()
                 }
                 bags._string += c;
                 if (!isprint(c))
-                    return l_error;
+                {
+                    move(1);
+                    return record_error(e_invalid_string);
+                }
             }
             else if (sm[2].matched) // like \r, \n, ...
             {
@@ -444,8 +470,17 @@ lexer_t CLexer::next_string()
             else break;
         }
     }
-    assert(!"string not match");
-    return l_error;
+    if (std::regex_search(str.cbegin() + index + 1, str.cend(), sm, r_expect_nonstr)) // handle error
+    {
+        if (sm[0].matched)
+        {
+            auto ml = sm[0].length();
+            move(ml);
+            return record_error(e_invalid_string);
+        }
+    }
+    move(length - index); // move to end
+    return record_error(e_invalid_string);
 }
 
 lexer_t CLexer::next_comment()
@@ -467,8 +502,8 @@ lexer_t CLexer::next_comment()
             return l_comment;
         }
     }
-    assert(!"comment not match");
-    return l_error;
+    move(length - index); // move to end
+    return record_error(e_invalid_comment);
 }
 
 lexer_t CLexer::next_operator()
@@ -488,10 +523,8 @@ lexer_t CLexer::next_operator()
             return l_operator;
         }
     }
-    // ignore error
-    // assert(!"operator not match");
     move(1);
-    return l_error;
+    return record_error(e_invalid_operator);
 }
 
 int CLexer::local()

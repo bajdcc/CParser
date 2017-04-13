@@ -125,6 +125,17 @@ enum operator_t
     op__end
 };
 
+enum error_t
+{
+    e__start,
+    e_invalid_char,
+    e_invalid_operator,
+    e_invalid_comment,
+    e_invalid_digit,
+    e_invalid_string,
+    e__end
+};
+
 template<lexer_t>
 struct base_t
 {
@@ -155,6 +166,7 @@ DEFINE_BASE_TYPE(l_string, string_t)
 DEFINE_BASE_TYPE(l_comment, string_t)
 DEFINE_BASE_TYPE(l_space, int)
 DEFINE_BASE_TYPE(l_newline, int)
+DEFINE_BASE_TYPE(l_error, error_t)
 
 #undef DEFINE_BASE_TYPE
 
@@ -162,6 +174,7 @@ const string_t& lexer_typestr(lexer_t);
 const string_t& lexer_keywordstr(keyword_t);
 const string_t& lexer_opstr(operator_t);
 const string_t& lexer_opnamestr(operator_t);
+const string_t& lexer_errstr(error_t);
 
 string_t lexer_keyword_regex();
 string_t lexer_operator_regex(int);
@@ -173,5 +186,6 @@ int lexer_operator_start_idx(int);
 
 #define KEYWORD_STRING(t) lexer_keywordstr(t)
 #define OPERATOR_STRING(t) lexer_opnamestr(t)
+#define ERROR_STRING(t) lexer_errstr(t)
 
 #endif
