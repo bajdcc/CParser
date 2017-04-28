@@ -109,7 +109,7 @@ string_t operator_string_list[] =
     "!",
     "<",
     ">",
-    "",
+    "(",
     ")",
     "{",
     "}",

@@ -13,7 +13,7 @@ CLexer::~CLexer()
 }
 
 #define DEFINE_LEXER_GETTER(t) \
-LEX_T(t) CLexer::get_##t() \
+LEX_T(t) CLexer::get_##t() const \
 { \
     return bags._##t; \
 }
@@ -35,7 +35,25 @@ DEFINE_LEXER_GETTER(comment)
 DEFINE_LEXER_GETTER(space)
 DEFINE_LEXER_GETTER(newline)
 DEFINE_LEXER_GETTER(error)
+#undef DEFINE_LEXER_GETTER
 
+#define DEFINE_LEXER_GETTER(t) \
+LEX_T(t) CLexer::get_store_##t(int index) const \
+{ \
+    return storage._##t[index]; \
+}
+DEFINE_LEXER_GETTER(char)
+DEFINE_LEXER_GETTER(uchar)
+DEFINE_LEXER_GETTER(short)
+DEFINE_LEXER_GETTER(ushort)
+DEFINE_LEXER_GETTER(int)
+DEFINE_LEXER_GETTER(uint)
+DEFINE_LEXER_GETTER(long)
+DEFINE_LEXER_GETTER(ulong)
+DEFINE_LEXER_GETTER(float)
+DEFINE_LEXER_GETTER(double)
+DEFINE_LEXER_GETTER(identifier)
+DEFINE_LEXER_GETTER(string)
 #undef DEFINE_LEXER_GETTER
 
 bool match_pred(smatch_t::value_type sm)
@@ -155,6 +173,66 @@ string_t CLexer::current() const
         break;
     }
     return str.substr(last_index, index - last_index);
+}
+
+std::string CLexer::store_start()
+{
+    std::stringstream ss;
+    while (next() != l_end)
+    {
+        auto s = store();
+        if (!s.empty())
+        {
+            ss << s;
+            ss.put(' ');
+        }
+    }
+    return ss.str();
+}
+
+string_t CLexer::store()
+{
+    static char buf[52];
+    switch (type)
+    {
+    case l_none:
+    case l_error:
+    case l_comment:
+    case l_space:
+    case l_newline:
+        return "";
+#define DEFINE_LEXER_STORAGE_GET(t, a) case l_##t: { \
+        _itoa_s(storage._##t.size(), buf + 1, 50, 10); \
+        storage._##t.push_back(get_##t()); \
+        buf[0] = a; \
+        return buf; \
+    }
+    DEFINE_LEXER_STORAGE_GET(char, 'c')
+    DEFINE_LEXER_STORAGE_GET(uchar, 'C')
+    DEFINE_LEXER_STORAGE_GET(short, 's')
+    DEFINE_LEXER_STORAGE_GET(ushort, 'S')
+    DEFINE_LEXER_STORAGE_GET(int, 'i')
+    DEFINE_LEXER_STORAGE_GET(uint, 'I')
+    DEFINE_LEXER_STORAGE_GET(long, 'l')
+    DEFINE_LEXER_STORAGE_GET(ulong, 'L')
+    DEFINE_LEXER_STORAGE_GET(float, 'f')
+    DEFINE_LEXER_STORAGE_GET(double, 'd')
+    DEFINE_LEXER_STORAGE_GET(string, 's')
+    DEFINE_LEXER_STORAGE_GET(identifier, 't')
+#undef DEFINE_LEXER_STORAGE_GET
+#define DEFINE_LEXER_STORAGE_GET(t, a) case l_##t: { \
+        _itoa_s((int)get_##t(), buf + 1, 50, 10); \
+        buf[0] = a; \
+        return buf; \
+    }
+    DEFINE_LEXER_STORAGE_GET(keyword, 'k')
+#undef DEFINE_LEXER_STORAGE_GET
+    case l_operator:
+        return str.substr(last_index, index - last_index);
+    case l_end: break;
+    default: break;
+    }
+    return "";
 }
 
 void CLexer::move(int idx, int inc, bool newline)

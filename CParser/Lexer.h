@@ -11,25 +11,39 @@ public:
     ~CLexer();
 
     // 外部接口
-#define DEFINE_LEXER_GETTER(t) LEX_T(t) get_##t();
-        DEFINE_LEXER_GETTER(char)
-        DEFINE_LEXER_GETTER(uchar)
-        DEFINE_LEXER_GETTER(short)
-        DEFINE_LEXER_GETTER(ushort)
-        DEFINE_LEXER_GETTER(int)
-        DEFINE_LEXER_GETTER(uint)
-        DEFINE_LEXER_GETTER(long)
-        DEFINE_LEXER_GETTER(ulong)
-        DEFINE_LEXER_GETTER(float)
-        DEFINE_LEXER_GETTER(double)
-        DEFINE_LEXER_GETTER(operator)
-        DEFINE_LEXER_GETTER(keyword)
-        DEFINE_LEXER_GETTER(identifier)
-        DEFINE_LEXER_GETTER(string)
-        DEFINE_LEXER_GETTER(comment)
-        DEFINE_LEXER_GETTER(space)
-        DEFINE_LEXER_GETTER(newline)
-        DEFINE_LEXER_GETTER(error)
+#define DEFINE_LEXER_GETTER(t) LEX_T(t) get_##t() const;
+    DEFINE_LEXER_GETTER(char)
+    DEFINE_LEXER_GETTER(uchar)
+    DEFINE_LEXER_GETTER(short)
+    DEFINE_LEXER_GETTER(ushort)
+    DEFINE_LEXER_GETTER(int)
+    DEFINE_LEXER_GETTER(uint)
+    DEFINE_LEXER_GETTER(long)
+    DEFINE_LEXER_GETTER(ulong)
+    DEFINE_LEXER_GETTER(float)
+    DEFINE_LEXER_GETTER(double)
+    DEFINE_LEXER_GETTER(operator)
+    DEFINE_LEXER_GETTER(keyword)
+    DEFINE_LEXER_GETTER(identifier)
+    DEFINE_LEXER_GETTER(string)
+    DEFINE_LEXER_GETTER(comment)
+    DEFINE_LEXER_GETTER(space)
+    DEFINE_LEXER_GETTER(newline)
+    DEFINE_LEXER_GETTER(error)
+#undef DEFINE_LEXER_GETTER
+#define DEFINE_LEXER_GETTER(t) LEX_T(t) get_store_##t(int) const;
+    DEFINE_LEXER_GETTER(char)
+    DEFINE_LEXER_GETTER(uchar)
+    DEFINE_LEXER_GETTER(short)
+    DEFINE_LEXER_GETTER(ushort)
+    DEFINE_LEXER_GETTER(int)
+    DEFINE_LEXER_GETTER(uint)
+    DEFINE_LEXER_GETTER(long)
+    DEFINE_LEXER_GETTER(ulong)
+    DEFINE_LEXER_GETTER(float)
+    DEFINE_LEXER_GETTER(double)
+    DEFINE_LEXER_GETTER(identifier)
+    DEFINE_LEXER_GETTER(string)
 #undef DEFINE_LEXER_GETTER
 
 public:
@@ -56,8 +70,9 @@ public:
     int get_last_column() const;
     string_t current() const;
 
-private:
+    std::string store_start();
 
+private:
     void move(int idx, int inc = -1, bool newline = false);
 
     // 内部解析
@@ -71,6 +86,8 @@ private:
 
     int local();
     int local(int offset);
+
+    string_t store();
 
 private:
     string_t str;
@@ -107,6 +124,30 @@ private:
         DEFINE_LEXER_GETTER(error)
 #undef DEFINE_LEXER_GETTER
     } bags;
+
+    struct
+    {
+#define DEFINE_LEXER_STORAGE(t) std::vector<LEX_T(t)> _##t;
+        DEFINE_LEXER_STORAGE(char)
+        DEFINE_LEXER_STORAGE(uchar)
+        DEFINE_LEXER_STORAGE(short)
+        DEFINE_LEXER_STORAGE(ushort)
+        DEFINE_LEXER_STORAGE(int)
+        DEFINE_LEXER_STORAGE(uint)
+        DEFINE_LEXER_STORAGE(long)
+        DEFINE_LEXER_STORAGE(ulong)
+        DEFINE_LEXER_STORAGE(float)
+        DEFINE_LEXER_STORAGE(double)
+        DEFINE_LEXER_STORAGE(operator)
+        DEFINE_LEXER_STORAGE(keyword)
+        DEFINE_LEXER_STORAGE(identifier)
+        DEFINE_LEXER_STORAGE(string)
+        DEFINE_LEXER_STORAGE(comment)
+        DEFINE_LEXER_STORAGE(space)
+        DEFINE_LEXER_STORAGE(newline)
+        DEFINE_LEXER_STORAGE(error)
+#undef DEFINE_LEXER_STORAGE
+    } storage;
 
     // 正则表达式
     smatch_t sm;
