@@ -10,6 +10,7 @@ using regex_t = std::regex;
 enum lexer_t
 {
     l_none,
+    l_ptr,
     l_error,
     l_char,
     l_uchar,
@@ -147,8 +148,10 @@ template<> \
 struct base_t<t> \
 { \
     using type = obj; \
+    static const int size = sizeof(t);\
 };
 
+DEFINE_BASE_TYPE(l_ptr, void*)
 DEFINE_BASE_TYPE(l_char, char)
 DEFINE_BASE_TYPE(l_uchar, unsigned char)
 DEFINE_BASE_TYPE(l_short, short)
@@ -175,6 +178,7 @@ const string_t& lexer_keywordstr(keyword_t);
 const string_t& lexer_opstr(operator_t);
 const string_t& lexer_opnamestr(operator_t);
 const string_t& lexer_errstr(error_t);
+int lexer_operatorpred(operator_t);
 
 string_t lexer_keyword_regex();
 string_t lexer_operator_regex(int);
@@ -182,10 +186,52 @@ string_t lexer_operator_regex(int);
 int lexer_operator_start_idx(int);
 
 #define LEX_T(t) base_t<l_##t>::type
+#define LEX_SIZEOF(t) base_t<l_##t>::size
 #define LEX_STRING(t) lexer_typestr(t)
 
 #define KEYWORD_STRING(t) lexer_keywordstr(t)
 #define OPERATOR_STRING(t) lexer_opnamestr(t)
 #define ERROR_STRING(t) lexer_errstr(t)
+
+#define OPERATOR_PRED(t) lexer_operatorpred(t)
+
+//----------------------------------------------------
+
+// instructions
+
+enum ins_t
+{
+    LEA, IMM, JMP, CALL, JZ, JNZ, ENT, ADJ, LEV, LI, LC, SI, SC, PUSH,
+    OR, XOR, AND, EQ, NE, LT, GT, LE, GE, SHL, SHR, ADD, SUB, MUL, DIV, MOD,
+};
+
+enum class_t
+{
+    CLASS_NULL, Num, Fun, Sys, Glo, Loc, Id
+};
+
+union storage_t
+{
+#define DEFINE_LEXER_STORAGE(t) LEX_T(t) _##t;
+    DEFINE_LEXER_STORAGE(char)
+    DEFINE_LEXER_STORAGE(uchar)
+    DEFINE_LEXER_STORAGE(short)
+    DEFINE_LEXER_STORAGE(ushort)
+    DEFINE_LEXER_STORAGE(int)
+    DEFINE_LEXER_STORAGE(uint)
+    DEFINE_LEXER_STORAGE(long)
+    DEFINE_LEXER_STORAGE(ulong)
+    DEFINE_LEXER_STORAGE(float)
+    DEFINE_LEXER_STORAGE(double)
+#undef DEFINE_LEXER_STORAGE
+};
+
+struct sym_t
+{
+    string_t name;
+    class_t cls, _cls;
+    lexer_t type, _type;
+    storage_t value, _value;
+};
 
 #endif

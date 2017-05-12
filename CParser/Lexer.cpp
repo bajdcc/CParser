@@ -93,7 +93,10 @@ lexer_t CLexer::next()
 {
     auto c = local();
     if (c == -1)
+    {
+        type = l_end;
         return l_end;
+    }
     type = l_error;
     if (isalpha(c) || c == '_') // 变量名或关键字
     {
@@ -233,6 +236,115 @@ string_t CLexer::store()
     default: break;
     }
     return "";
+}
+
+bool CLexer::is_type(lexer_t type) const
+{
+    return get_type() == type;
+}
+
+bool CLexer::is_keyword(keyword_t type) const
+{
+    return get_type() == l_keyword && get_keyword() == type;
+}
+
+bool CLexer::is_operator(operator_t type) const
+{
+    return get_type() == l_operator && get_operator() == type;
+}
+
+bool CLexer::is_operator(operator_t type1, operator_t type2) const
+{
+    return get_type() == l_operator && (get_operator() == type1 || get_operator() == type2);
+}
+
+bool CLexer::is_number() const
+{
+    return get_type() >= l_char && get_type() <= l_double;
+}
+
+bool CLexer::is_integer() const
+{
+    return get_type() >= l_char && get_type() <= l_long;
+}
+
+bool CLexer::is_basetype() const
+{
+    if (get_type() != l_keyword)
+        return false;
+    switch (get_keyword())
+    {
+#define DEFINE_LEXER_CASE(t) case k_##t:
+        DEFINE_LEXER_CASE(char)
+        DEFINE_LEXER_CASE(short)
+        DEFINE_LEXER_CASE(int)
+        DEFINE_LEXER_CASE(long)
+        DEFINE_LEXER_CASE(unsigned)
+        return true;
+#undef DEFINE_LEXER_CASE
+    default: break;
+    }
+    return false;
+}
+
+LEX_T(uint) CLexer::get_integer() const
+{
+    assert(is_integer());
+    switch (type)
+    {
+#define DEFINE_LEXER_CASE(t) case l_##t: return get_##t();
+        DEFINE_LEXER_CASE(char)
+        DEFINE_LEXER_CASE(uchar)
+        DEFINE_LEXER_CASE(short)
+        DEFINE_LEXER_CASE(ushort)
+        DEFINE_LEXER_CASE(int)
+        DEFINE_LEXER_CASE(uint)
+        DEFINE_LEXER_CASE(long)
+        DEFINE_LEXER_CASE(ulong)
+#undef DEFINE_LEXER_CASE
+    default: break;
+    }
+    return 0;
+}
+
+LEX_T(int) CLexer::get_sizeof() const
+{
+    assert(is_type(l_keyword));
+    switch (get_keyword())
+    {
+#define DEFINE_LEXER_KEYWORD(t) case k_##t: return LEX_SIZEOF(t);
+        DEFINE_LEXER_KEYWORD(char)
+        DEFINE_LEXER_KEYWORD(short)
+        DEFINE_LEXER_KEYWORD(int)
+        DEFINE_LEXER_KEYWORD(long)
+        DEFINE_LEXER_KEYWORD(float)
+        DEFINE_LEXER_KEYWORD(double)
+#undef DEFINE_LEXER_KEYWORD
+    default:
+        assert(!"unsupported type");
+        break;
+    }
+    return -1;
+}
+
+lexer_t CLexer::get_typeof(bool _unsigned) const
+{
+    assert(is_type(l_keyword));
+    switch (get_keyword())
+    {
+#define DEFINE_LEXER_KEYWORD(t) case k_##t: return lexer_t(l_##t + int(_unsigned));
+        DEFINE_LEXER_KEYWORD(char)
+        DEFINE_LEXER_KEYWORD(short)
+        DEFINE_LEXER_KEYWORD(int)
+        DEFINE_LEXER_KEYWORD(long)
+        DEFINE_LEXER_KEYWORD(float)
+        DEFINE_LEXER_KEYWORD(double)
+#undef DEFINE_LEXER_KEYWORD
+    default:
+        assert(!"unsupported type");
+        break;
+    }
+    return l_error;
 }
 
 void CLexer::move(int idx, int inc, bool newline)

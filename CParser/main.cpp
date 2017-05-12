@@ -3,6 +3,24 @@
 
 int main()
 {
-    CParser p("+ 1 2 (* 5 6) (- 5 2)");
+    string_t txt = R"(
+int fibonacci(int i) {
+    if (i <= 1) {
+        return 1;
+    }
+    return fibonacci(i - 1) + fibonacci(i - 2);
+}
+
+int main()
+{
+    int i;
+    i = 0;
+    while (i <= 10) {
+        fibonacci(i);
+        i = i + 1;
+    }
+    return 0;
+})";
+    CParser p(txt);
     return 0;
 }

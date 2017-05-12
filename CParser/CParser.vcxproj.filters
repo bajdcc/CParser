@@ -30,7 +30,7 @@
     <ClInclude Include="types.h">
       <Filter>头文件</Filter>
     </ClInclude>
-    <ClInclude Include="mpc.h">
+    <ClInclude Include="Gen.h">
       <Filter>头文件</Filter>
     </ClInclude>
   </ItemGroup>
@@ -47,13 +47,13 @@
     <ClCompile Include="types.cpp">
       <Filter>源文件</Filter>
     </ClCompile>
-    <ClCompile Include="mpc.c">
-      <Filter>源文件</Filter>
-    </ClCompile>
     <ClCompile Include="test.cpp">
       <Filter>源文件</Filter>
     </ClCompile>
     <ClCompile Include="main.cpp">
+      <Filter>源文件</Filter>
+    </ClCompile>
+    <ClCompile Include="Gen.cpp">
       <Filter>源文件</Filter>
     </ClCompile>
   </ItemGroup>

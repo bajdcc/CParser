@@ -89,6 +89,19 @@ private:
 
     string_t store();
 
+public:
+    bool is_type(lexer_t) const;
+    bool is_keyword(keyword_t) const;
+    bool is_operator(operator_t) const;
+    bool is_operator(operator_t, operator_t) const;
+    bool is_number() const;
+    bool is_integer() const;
+    bool is_basetype() const;
+
+    LEX_T(uint) get_integer() const;
+    LEX_T(int) get_sizeof() const;
+    lexer_t get_typeof(bool) const;
+
 private:
     string_t str;
     int index{ 0 };

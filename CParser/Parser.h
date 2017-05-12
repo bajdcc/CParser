@@ -3,9 +3,7 @@
 
 #include "types.h"
 #include "Lexer.h"
-extern "C" {
-    #include "mpc.h"
-}
+#include "Gen.h"
 
 class CParser
 {
@@ -15,13 +13,37 @@ public:
 
 private:
     void init();
+    void next();
 
-    long eval_exp(mpc_ast_t* t);
-    long eval_op(long x, char* op, long y);
+    void program();
+    void expression(operator_t level);
+    void statement();
+    void enum_declaration();
+    void function_parameter();
+    void function_body();
+    void function_declaration();
+    void global_declaration();
+
+private:
+    void match_keyword(keyword_t);
+    void match_operator(operator_t);
+    void match_type(lexer_t);
+    void match_number();
+    void match_integer();
+
+    lexer_t parse_type();
+    void save_identifier();
+
+private:
+    lexer_t base_type{ l_none };
+    lexer_t expr_type{ l_none };
+    int ptr_level{ 0 };
+    int ebp{ 0 };
+    std::shared_ptr<sym_t> id;
 
 private:
     CLexer lexer;
-    std::string lexstr;
+    CGen gen;
 };
 
 #endif
