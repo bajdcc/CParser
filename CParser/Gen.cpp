@@ -4,6 +4,7 @@
 
 CGen::CGen()
 {
+    builtin();
 }
 
 
@@ -152,7 +153,8 @@ void CGen::eval()
     //--------------------------------------------------
 
     auto entry = symbols.find("main");
-    if (entry == symbols.end()) {
+    if (entry == symbols.end())
+    {
         printf("main() not defined\n");
         assert(0);
     }
@@ -162,12 +164,14 @@ void CGen::eval()
     auto bp = (int *)0;
 
     auto cycle = 0;
-    while (pc != -1) {
+    while (pc != -1)
+    {
         cycle++;
         auto op = text[pc++]; // get next operation code
 
         // print debug info
-        if (true) {
+        if (false)
+        {
             printf("%03d> [%02d] %.4s", cycle, pc,
                 &"LEA ,IMM ,JMP ,CALL,JZ  ,JNZ ,ENT ,ADJ ,LEV ,LI  ,LC  ,SI  ,SC  ,PUSH,"
                 "OR  ,XOR ,AND ,EQ  ,NE  ,LT  ,GT  ,LE  ,GE  ,SHL ,SHR ,ADD ,SUB ,MUL ,DIV ,MOD ,"
@@ -193,6 +197,10 @@ void CGen::eval()
         else if (op == LEV) { sp = bp; bp = (int *)*sp++; pc = *sp++; }         // restore call frame and PC
         else if (op == LEA) { ax = (int)(bp + text[pc++]); }                    // load address for arguments.
 
+        else if (op == PRF) {
+            auto tmp = sp + text[pc + 1]; // 利用之后的ADJ清栈指令知道函数调用的参数个数
+            ax = printf((char *)(data.data() + tmp[-1]), tmp[-2], tmp[-3], tmp[-4], tmp[-5], tmp[-6]); } // load address for arguments.
+
         else if (op == OR)  ax = *sp++ | ax;
         else if (op == XOR) ax = *sp++ ^ ax;
         else if (op == AND) ax = *sp++ & ax;
@@ -209,9 +217,25 @@ void CGen::eval()
         else if (op == MUL) ax = *sp++ * ax;
         else if (op == DIV) ax = *sp++ / ax;
         else if (op == MOD) ax = *sp++ % ax;
-        else {
+        else
+        {
             printf("unknown instruction:%d\n", op);
             assert(0);
         }
     }
+}
+
+void CGen::builtin()
+{
+    builtin_add("printf", Sys, l_int, PRF);
+}
+
+void CGen::builtin_add(string_t name, class_t cls, lexer_t type, LEX_T(int) value)
+{
+    auto sym = std::make_shared<sym_t>();
+    sym->name = name;
+    sym->cls = cls;
+    sym->type = type;
+    sym->value._int = value;
+    symbols.insert(std::make_pair(name, sym));
 }

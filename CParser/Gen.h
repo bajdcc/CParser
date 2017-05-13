@@ -32,6 +32,10 @@ public:
     void eval();
 
 private:
+    void builtin();
+    void builtin_add(string_t name, class_t cls, lexer_t type, LEX_T(int) value);
+
+private:
     std::vector<LEX_T(int)> text;
     std::vector<LEX_T(int)> stack;
     std::vector<LEX_T(char)> data;

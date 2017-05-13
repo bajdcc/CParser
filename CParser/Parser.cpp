@@ -72,6 +72,7 @@ void CParser::expression(operator_t level)
         else if (lexer.is_type(l_string)) // ×Ö·û´®
         {
             // continous string "abc" "abc"
+            match_type(l_string);
 
             // emit code
             gen.emit(IMM);
