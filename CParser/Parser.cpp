@@ -44,29 +44,22 @@ void CParser::program()
     }
 }
 
+// 表达式
 void CParser::expression(operator_t level)
 {
-    // expressions have various format.
-    // but majorly can be divided into two parts: unit and operator
-    // for example `(char) *a[10] = (int *) func(b > 0 ? 10 : 20);
-    // `a[10]` is an unit while `*` is an operator.
-    // `func(...)` in total is an unit.
-    // so we should first parse those unit and unary operators
-    // and then the binary ones
-    //
-    // also the expression can be in the following types:
+    // 表达式有多种类型，像 `(char) *a[10] = (int *) func(b > 0 ? 10 : 20);
     //
     // 1. unit_unary ::= unit | unit unary_op | unary_op unit
     // 2. expr ::= unit_unary (bin_op unit_unary ...)
 
     // unit_unary()
     {
-        if (lexer.is_type(l_end))
+        if (lexer.is_type(l_end)) // 结尾
         {
-            printf("%d: unexpected token EOF of expression\n", lexer.get_line());
+            error("unexpected token EOF of expression");
             assert(0);
         }
-        if (lexer.is_integer())
+        if (lexer.is_integer()) // 数字
         {
             auto tmp = lexer.get_integer();
             match_number();
@@ -76,7 +69,7 @@ void CParser::expression(operator_t level)
             gen.emit(tmp);
             expr_type = lexer.get_type();
         }
-        else if (lexer.is_type(l_string))
+        else if (lexer.is_type(l_string)) // 字符串
         {
             // continous string "abc" "abc"
 
@@ -85,18 +78,16 @@ void CParser::expression(operator_t level)
             gen.emit(gen.save_string(lexer.get_string()));
             expr_type = l_ptr;
         }
-        else if (lexer.is_keyword(k_sizeof))
+        else if (lexer.is_keyword(k_sizeof)) // sizeof
         {
-            // sizeof is actually an unary operator
-            // now only `sizeof(int)`, `sizeof(char)` and `sizeof(*...)` are
-            // supported.
+            // 支持 `sizeof(int)`, `sizeof(char)` and `sizeof(*...)`
             match_keyword(k_sizeof);
             match_operator(op_lparan);
             expr_type = l_int;
 
             if (lexer.is_keyword(k_unsigned))
             {
-                match_keyword(k_unsigned);
+                match_keyword(k_unsigned); // 有符号或无符号大小相同
             }
 
             auto size = lexer.get_sizeof();
@@ -106,7 +97,7 @@ void CParser::expression(operator_t level)
                 match_operator(op_times);
                 if (expr_type != l_ptr)
                 {
-                    size = LEX_SIZEOF(ptr);
+                    size = LEX_SIZEOF(ptr); // 指针大小
                     expr_type = l_ptr;
                 }
             }
@@ -119,25 +110,24 @@ void CParser::expression(operator_t level)
 
             expr_type = l_int;
         }
-        else if (lexer.is_type(l_identifier))
+        else if (lexer.is_type(l_identifier)) // 变量
         {
-            // there are several type when occurs to Id
-            // but this is unit, so it can only be
-            // 1. function call
-            // 2. Enum variable
-            // 3. global/local variable
+            // 三种可能
+            // 1. function call 函数名调用
+            // 2. Enum variable 枚举值
+            // 3. global/local variable 全局/局部变量名
             match_type(l_identifier);
 
-            auto func_id = id;
+            auto func_id = id; // 保存当前的变量名(因为如果是函数调用，id会被覆盖)
 
-            if (lexer.is_operator(op_lparan))
+            if (lexer.is_operator(op_lparan)) // 函数调用
             {
                 // function call
                 match_operator(op_lparan);
 
                 // pass in arguments
                 auto tmp = 0; // number of arguments
-                while (!lexer.is_operator(op_rparan))
+                while (!lexer.is_operator(op_rparan)) // 参数数量
                 {
                     expression(op_assign);
                     gen.emit(PUSH);
@@ -153,12 +143,12 @@ void CParser::expression(operator_t level)
                 id = func_id;
 
                 // emit code
-                if (id->cls == Sys)
+                if (id->cls == Sys) // 内建函数
                 {
                     // system functions
                     gen.emit(*id);
                 }
-                else if (id->cls == Fun)
+                else if (id->cls == Fun) // 普通函数
                 {
                     // function call
                     gen.emit(CALL);
@@ -166,11 +156,11 @@ void CParser::expression(operator_t level)
                 }
                 else
                 {
-                    printf("%d: bad function call\n", lexer.get_line());
+                    error("bad function call");
                     assert(0);;
                 }
 
-                // clean the stack for arguments
+                // 清除栈上参数
                 if (tmp > 0)
                 {
                     gen.emit(ADJ);
@@ -180,7 +170,6 @@ void CParser::expression(operator_t level)
             }
             else if (id->cls == Num)
             {
-
                 // enum variable
                 gen.emit(IMM);
                 gen.emit(*id);
@@ -189,28 +178,28 @@ void CParser::expression(operator_t level)
             else
             {
                 // variable
-                if (id->cls == Loc)
+                if (id->cls == Loc) // 本地变量
                 {
                     gen.emit(LEA);
                     gen.emit(*id, ebp);
                 }
-                else if (id->cls == Glo)
+                else if (id->cls == Glo) // 全局变量
                 {
                     gen.emit(IMM);
                     gen.emit(*id);
                 }
                 else
                 {
-                    printf("%d: undefined variable\n", lexer.get_line());
+                    error("undefined variable");
                     assert(0);;
                 }
-                // emit code, default behaviour is to load the value of the
-                // address which is stored in `ax`
+                // emit code
+                // 读取值到ax寄存器中
                 expr_type = id->type;
                 gen.emitl(expr_type);
             }
         }
-        else if (lexer.is_operator(op_lparan))
+        else if (lexer.is_operator(op_lparan)) // 强制转换
         {
             // cast or parenthesis
             match_operator(op_lparan);
@@ -226,17 +215,17 @@ void CParser::expression(operator_t level)
                 }
                 match_operator(op_rparan);
 
-                expression((operator_t)202); // cast has precedence as Inc(++)
+                expression((operator_t)202);
                 expr_type = tmp;
             }
             else
             {
-                // normal parenthesis
+                // 普通括号嵌套
                 expression(op_assign);
                 match_operator(op_rparan);
             }
         }
-        else if (lexer.is_operator(op_times))
+        else if (lexer.is_operator(op_times)) // 解引用
         {
             // dereference *<addr>
             match_operator(op_times);
@@ -247,24 +236,24 @@ void CParser::expression(operator_t level)
             }
             else
             {
-                printf("%d: bad dereference\n", lexer.get_line());
+                error("bad dereference");
                 assert(0);;
             }
 
             gen.emitl(expr_type);
         }
-        else if (lexer.is_operator(op_bit_and))
+        else if (lexer.is_operator(op_bit_and)) // 取地址
         {
             // get the address of
             match_operator(op_bit_and);
-            expression((operator_t)206); // get the address of
+            expression((operator_t)206);
             if (gen.top() == LC || gen.top() == LI)
             {
                 gen.pop();
             }
             else
             {
-                printf("%d: bad address of\n", lexer.get_line());
+                error("bad address of");
                 assert(0);;
             }
 
@@ -335,7 +324,7 @@ void CParser::expression(operator_t level)
             expression((operator_t)tmp);
             if (gen.top() == LC)
             {
-                gen.top(PUSH);  // to duplicate the address
+                gen.top(PUSH);  // 构造副本
                 gen.emit(LC);
             }
             else if (gen.top() == LI)
@@ -345,7 +334,7 @@ void CParser::expression(operator_t level)
             }
             else
             {
-                printf("%d: bad lvalue of pre-increment\n", lexer.get_line());
+                error("bad lvalue of pre-increment");
                 assert(0);;
             }
             gen.emit(PUSH);
@@ -356,22 +345,21 @@ void CParser::expression(operator_t level)
         }
         else
         {
-            printf("%d: bad expression\n", lexer.get_line());
+            error("bad expression");
             assert(0);;
         }
     }
 
-    // binary operator and postfix operators.
+    // 二元表达式以及后缀操作符
     {
-        while (lexer.is_type(l_operator) && OPERATOR_PRED(lexer.get_operator()) <= OPERATOR_PRED(level))
+        while (lexer.is_type(l_operator) && OPERATOR_PRED(lexer.get_operator()) <= OPERATOR_PRED(level)) // 优先级判断
         {
-            // handle according to current operator's precedence
             auto tmp = expr_type;
             if (lexer.is_operator(op_rparan))
             {
                 break;
             }
-            else if (lexer.is_operator(op_assign))
+            if (lexer.is_operator(op_assign))
             {
                 // var = expr;
                 match_operator(op_assign);
@@ -381,7 +369,7 @@ void CParser::expression(operator_t level)
                 }
                 else
                 {
-                    printf("%d: bad lvalue in assignment\n", lexer.get_line());
+                    error("bad lvalue in assignment");
                     assert(0);;
                 }
                 expression(op_assign);
@@ -402,7 +390,7 @@ void CParser::expression(operator_t level)
                 }
                 else
                 {
-                    printf("%d: missing colon in conditional\n", lexer.get_line());
+                    error("missing colon in conditional");
                     assert(0);;
                 }
 
@@ -465,6 +453,7 @@ MATCH_BINOP(op_mod, MOD)
                 // postfix inc(++) and dec(--)
                 // we will increase the value to the variable and decrease it
                 // on `ax` to get its original value.
+                // 构建副本
                 if (gen.top() == LI)
                 {
                     gen.top(PUSH);
@@ -477,7 +466,7 @@ MATCH_BINOP(op_mod, MOD)
                 }
                 else
                 {
-                    printf("%d: bad value in increment\n", lexer.get_line());
+                    error("bad value in increment");
                     assert(0);;
                 }
 
@@ -509,7 +498,7 @@ MATCH_BINOP(op_mod, MOD)
                 }
                 else
                 {
-                    printf("%d: pointer type expected\n", lexer.get_line());
+                    error("pointer type expected");
                     assert(0);;
                 }
                 ptr_level--;
@@ -518,13 +507,14 @@ MATCH_BINOP(op_mod, MOD)
             }
             else
             {
-                printf("%d: compiler error, token = %s\n", lexer.get_line(), lexer.current().c_str());
+                error("compiler error, token = " + lexer.current());
                 assert(0);;
             }
         }
     }
 }
 
+// 基本语句
 void CParser::statement()
 {
     // there are 8 kinds of statements here:
@@ -535,7 +525,7 @@ void CParser::statement()
     // 5. <empty statement>;
     // 6. expression; (expression end with semicolon)
 
-    if (lexer.is_keyword(k_if))
+    if (lexer.is_keyword(k_if)) // if判断
     {
         // if (...) <statement> [else <statement>]
         //
@@ -550,16 +540,16 @@ void CParser::statement()
         //
         match_keyword(k_if);
         match_operator(op_lparan);
-        expression(op_assign);  // parse condition
+        expression(op_assign);  // if判断的条件
         match_operator(op_rparan);
 
         // emit code for if
         gen.emit(JZ);
-        auto b = gen.index(); // bess for branch control
+        auto b = gen.index(); // 分支判断，这里要回写到b(即if结尾)
         gen.emit(-1);
 
-        statement();         // parse statement
-        if (lexer.is_keyword(k_else)) { // parse else
+        statement();  // 处理if执行体
+        if (lexer.is_keyword(k_else)) { // 处理else
             match_keyword(k_else);
 
             // emit code for JMP B
@@ -573,7 +563,7 @@ void CParser::statement()
 
         gen.emit(gen.index(), b);
     }
-    else if (lexer.is_keyword(k_while))
+    else if (lexer.is_keyword(k_while)) // while循环
     {
         //
         // a:                     a:
@@ -587,20 +577,20 @@ void CParser::statement()
         auto a = gen.index();
 
         match_operator(op_lparan);
-        expression(op_assign);
+        expression(op_assign); // 条件
         match_operator(op_rparan);
 
         gen.emit(JZ);
-        auto b = gen.index();
+        auto b = gen.index(); // 退出的地方
         gen.emit(-1);
 
         statement();
 
         gen.emit(JMP);
-        gen.emit(a);
+        gen.emit(a); // 重复循环
         gen.emit(gen.index(), b);
     }
-    else if (lexer.is_operator(op_lbrace))
+    else if (lexer.is_operator(op_lbrace)) // 语句
     {
         // { <statement> ... }
         match_operator(op_lbrace);
@@ -612,7 +602,7 @@ void CParser::statement()
 
         match_operator(op_rbrace);
     }
-    else if (lexer.is_keyword(k_return))
+    else if (lexer.is_keyword(k_return)) // 返回
     {
         // return [expression];
         match_keyword(k_return);
@@ -627,12 +617,12 @@ void CParser::statement()
         // emit code for return
         gen.emit(LEV);
     }
-    else if (lexer.is_operator(op_semi))
+    else if (lexer.is_operator(op_semi)) // 空语句
     {
         // empty statement
         match_operator(op_semi);
     }
-    else
+    else // 表达式
     {
         // a = b; or function_call();
         expression(op_assign);
@@ -640,6 +630,7 @@ void CParser::statement()
     }
 }
 
+// 枚举声明
 void CParser::enum_declaration()
 {
     // parse enum [id] { a = 1, b = 3, ...}
@@ -649,23 +640,24 @@ void CParser::enum_declaration()
     {
         if (!lexer.is_type(l_identifier))
         {
-            printf("%d: bad enum identifier %s\n", lexer.get_line(), lexer.current().c_str());
+            error("bad enum identifier " + lexer.current());
             assert(0);;
         }
         next();
-        if (lexer.is_operator(op_assign))
+        if (lexer.is_operator(op_assign)) // 赋值
         {
-            // like {a=10}
+            // like { a = 10 }
             next();
             if (!lexer.is_integer())
             {
-                printf("%d: bad enum initializer\n", lexer.get_line());
+                error("bad enum initializer");
                 assert(0);;
             }
             i = lexer.get_integer();
             next();
         }
 
+        // 保存值到变量中
         id->cls = Num;
         id->type = l_int;
         id->value._int = i++;
@@ -677,16 +669,17 @@ void CParser::enum_declaration()
     }
 }
 
+// 函数参数
 void CParser::function_parameter()
 {
     auto params = 0;
-    while (!lexer.is_operator(op_rparan))
+    while (!lexer.is_operator(op_rparan)) // 判断参数右括号结尾
     {
         // int name, ...
-        auto type = parse_type();
+        auto type = parse_type(); // 基本类型
 
         // pointer type
-        while (lexer.is_operator(op_times))
+        while (lexer.is_operator(op_times)) // 指针
         {
             match_operator(op_times);
             ptr_level++;
@@ -695,20 +688,22 @@ void CParser::function_parameter()
         // parameter name
         if (!lexer.is_type(l_identifier))
         {
-            printf("%d: bad parameter declaration\n", lexer.get_line());
+            error("bad parameter declaration");
             assert(0);;
         }
-        if (id->cls == Loc)
+        if (id->cls == Loc) // 与变量声明冲突
         {
-            printf("%d: duplicate parameter declaration\n", lexer.get_line());
+            error("duplicate parameter declaration");
             assert(0);;
         }
 
         match_type(l_identifier);
-        // store the local variable
+        // 保存本地变量
+        // 这里为什么要多设个地方保存之前的值，是因为变量有域(大括号划分)的限制
+        // 进入一个函数体时，全局变量需要保存，退出函数体时恢复
         id->_cls = id->cls; id->cls = Loc;
         id->_type = id->type; id->type = type;
-        id->_value._int = id->value._int; id->value._int = params++;   // index of current parameter
+        id->_value._int = id->value._int; id->value._int = params++; // 变量在栈上地址
 
         if (lexer.is_operator(op_comma))
         {
@@ -718,6 +713,7 @@ void CParser::function_parameter()
     ebp = params + 1;
 }
 
+// 函数体
 void CParser::function_body()
 {
     // type func_name (...) {...}
@@ -729,17 +725,17 @@ void CParser::function_body()
         // 2. statements
         // }
 
-        auto pos_local = ebp; // position of local variables on the stack.
+        auto pos_local = ebp; // 变量在栈上地址
 
         while (lexer.is_basetype())
         {
-            // local variable declaration, just like global ones.
+            // 处理基本类型
             base_type = parse_type();
 
-            while (!lexer.is_operator(op_semi))
+            while (!lexer.is_operator(op_semi)) // 判断语句结束
             {
                 auto type = base_type;
-                while (lexer.is_operator(op_times))
+                while (lexer.is_operator(op_times)) // 处理指针
                 {
                     match_operator(op_times);
                     ptr_level++;
@@ -748,21 +744,23 @@ void CParser::function_body()
                 if (!lexer.is_type(l_identifier))
                 {
                     // invalid declaration
-                    printf("%d: bad local declaration\n", lexer.get_line());
+                    error("bad local declaration");
                     assert(0);;
                 }
-                if (id->cls == Loc)
+                if (id->cls == Loc) // 变量重复声明
                 {
                     // identifier exists
-                    printf("%d: duplicate local declaration\n", lexer.get_line());
+                    error("duplicate local declaration");
                     assert(0);;
                 }
                 match_type(l_identifier);
 
-                // store the local variable
+                // 保存本地变量
+                // 这里为什么要多设个地方保存之前的值，是因为变量有域(大括号划分)的限制
+                // 进入一个函数体时，全局变量需要保存，退出函数体时恢复
                 id->_cls = id->cls; id->cls = Loc;
                 id->_type = id->type; id->type = type;
-                id->_value._int = id->value._int; id->value._int = ++pos_local;   // index of current parameter
+                id->_value._int = id->value._int; id->value._int = ++pos_local;  // 参数在栈上地址
 
                 if (lexer.is_operator(op_comma))
                 {
@@ -787,6 +785,7 @@ void CParser::function_body()
     }
 }
 
+// 函数声明
 void CParser::function_declaration()
 {
     // type func_name (...) {...}
@@ -797,30 +796,31 @@ void CParser::function_declaration()
     match_operator(op_rparan);
     match_operator(op_lbrace);
     function_body();
-    //match('}');
+    // match('}'); 这里不处理右括号是为了上层函数判断结尾
 
     gen.unwind();
 }
 
+// 变量声明语句(全局或函数体内)
 // int [*]id [; | (...) {...}]
 void CParser::global_declaration()
 {
     base_type = l_int;
 
-    // parse enum, this should be treated alone.
+    // 处理enum枚举
     if (lexer.is_keyword(k_enum))
     {
         // enum [id] { a = 10, b = 20, ... }
         match_keyword(k_enum);
         if (!lexer.is_operator(op_lbrace))
         {
-            match_type(l_identifier); // skip the [id] part
+            match_type(l_identifier); // 省略了[id]枚举名
         }
         if (lexer.is_operator(op_lbrace))
         {
-            // parse the assign part
+            // 处理枚举体
             match_operator(op_lbrace);
-            enum_declaration();
+            enum_declaration(); // 枚举的变量声明部分，即 a = 10, b = 20, ...
             match_operator(op_rbrace);
         }
 
@@ -828,46 +828,46 @@ void CParser::global_declaration()
         return;
     }
 
-    // parse type information
+    // 解析基本类型，即变量声明时的类型
     parse_type();
 
-    // parse the comma seperated variable declaration.
+    // 处理逗号分隔的变量声明
     while (!lexer.is_operator(op_semi, op_rbrace))
     {
-        auto type = base_type;
-        // parse pointer type, note that there may exist `int ****x;`
+        auto type = base_type; // 以先声明的类型为基础
+        // 处理指针, 像`int ****x;`
         while (lexer.is_operator(op_times))
         {
             match_operator(op_times);
             ptr_level++;
         }
 
-        if (!lexer.is_type(l_identifier))
+        if (!lexer.is_type(l_identifier)) // 不存在变量名则报错
         {
             // invalid declaration
-            printf("%d: bad global declaration\n", lexer.get_line());
+            error("bad global declaration");
             assert(0);;
         }
         match_type(l_identifier);
-        if (id->cls)
+        if (id->cls) // 变量名已经声明，则报重复声明错误
         {
             // identifier exists
-            printf("%d: duplicate global declaration\n", lexer.get_line());
+            error("duplicate global declaration");
             assert(0);;
         }
         id->type = type;
 
-        if (lexer.is_operator(op_lparan))
+        if (lexer.is_operator(op_lparan)) // 有左括号则应判定是函数声明
         {
             id->cls = Fun;
-            id->value._int = gen.index(); // the memory address of function
+            id->value._int = gen.index(); // 记录函数地址
             function_declaration();
         }
         else
         {
-            // variable declaration
-            id->cls = Glo; // global variable
-            id->value._int = gen.get_data(); // assign memory address
+            // 处理变量声明
+            id->cls = Glo; // 全局变量
+            id->value._int = gen.get_data(); // 记录变量地址
         }
 
         if (lexer.is_operator(op_comma))
@@ -910,24 +910,33 @@ void CParser::match_integer()
     next();
 }
 
+// 处理基本类型
+// 分char,short,int,long以及相应的无符号类型(无符号暂时不支持)
+// 以及float和double(暂时不支持)
 lexer_t CParser::parse_type()
 {
     auto type = l_int;
     if (lexer.is_type(l_keyword))
     {
         auto _unsigned = false;
-        if (lexer.is_keyword(k_unsigned))
+        if (lexer.is_keyword(k_unsigned)) // 判定是否带有unsigned前缀
         {
             _unsigned = true;
             match_keyword(k_unsigned);
         }
-        type = lexer.get_typeof(_unsigned);
+        type = lexer.get_typeof(_unsigned); // 根据keyword得到lexer_t
         match_type(l_keyword);
     }
     return type;
 }
 
+// 保存刚刚识别的变量名
 void CParser::save_identifier()
 {
     id = gen.add_sym(lexer.get_identifier());
+}
+
+void CParser::error(string_t info)
+{
+    printf("[%04d, %02d]: %s\n", lexer.get_line(), lexer.get_column(), info.c_str());
 }

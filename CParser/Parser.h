@@ -34,6 +34,8 @@ private:
     lexer_t parse_type();
     void save_identifier();
 
+    void error(string_t);
+
 private:
     lexer_t base_type{ l_none };
     lexer_t expr_type{ l_none };

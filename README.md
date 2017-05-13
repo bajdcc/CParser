@@ -22,9 +22,19 @@
    8. 识别操作符
    9. 解析json11实例
    10. 错误处理
+2. 完善Parser
+   1. 识别函数
+   2. 识别枚举
+   3. 识别表达式
+   4. 识别基本结构
+3. 完善虚拟机
 
 ## 截图
 
 ### 词法分析
 
 ![](https://pic4.zhimg.com/v2-12fcbe73a8340d20a9488ae0228ff11f.png)
+
+## 参考
+
+1. [write-a-C-interpreter](https://github.com/lotabout/write-a-C-interpreter)
