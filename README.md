@@ -35,6 +35,10 @@
 
 ![](https://pic4.zhimg.com/v2-12fcbe73a8340d20a9488ae0228ff11f.png)
 
+### 解释器
+
+![](https://pic1.zhimg.com/v2-855b2e604a19e44a9f0f52e2a0eca010_r.png)
+
 ## 参考
 
 1. [write-a-C-interpreter](https://github.com/lotabout/write-a-C-interpreter)
