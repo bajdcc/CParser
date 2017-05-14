@@ -158,7 +158,6 @@ void CParser::expression(operator_t level)
                 else
                 {
                     error("bad function call");
-                    assert(0);;
                 }
 
                 // 清除栈上参数
@@ -192,7 +191,6 @@ void CParser::expression(operator_t level)
                 else
                 {
                     error("undefined variable");
-                    assert(0);;
                 }
                 // emit code
                 // 读取值到ax寄存器中
@@ -238,7 +236,6 @@ void CParser::expression(operator_t level)
             else
             {
                 error("bad dereference");
-                assert(0);;
             }
 
             gen.emitl(expr_type);
@@ -255,7 +252,6 @@ void CParser::expression(operator_t level)
             else
             {
                 error("bad address of");
-                assert(0);;
             }
 
             ptr_level++;
@@ -336,7 +332,6 @@ void CParser::expression(operator_t level)
             else
             {
                 error("bad lvalue of pre-increment");
-                assert(0);;
             }
             gen.emit(PUSH);
             gen.emit(IMM);
@@ -347,7 +342,6 @@ void CParser::expression(operator_t level)
         else
         {
             error("bad expression");
-            assert(0);;
         }
     }
 
@@ -371,7 +365,6 @@ void CParser::expression(operator_t level)
                 else
                 {
                     error("bad lvalue in assignment");
-                    assert(0);;
                 }
                 expression(op_assign);
                 expr_type = tmp;
@@ -392,7 +385,6 @@ void CParser::expression(operator_t level)
                 else
                 {
                     error("missing colon in conditional");
-                    assert(0);;
                 }
 
                 gen.emit(gen.index() + 3, addr);
@@ -468,7 +460,6 @@ MATCH_BINOP(op_mod, MOD)
                 else
                 {
                     error("bad value in increment");
-                    assert(0);;
                 }
 
                 gen.emit(PUSH);
@@ -500,7 +491,6 @@ MATCH_BINOP(op_mod, MOD)
                 else
                 {
                     error("pointer type expected");
-                    assert(0);;
                 }
                 ptr_level--;
                 gen.emit(ADD);
@@ -509,7 +499,6 @@ MATCH_BINOP(op_mod, MOD)
             else
             {
                 error("compiler error, token = " + lexer.current());
-                assert(0);;
             }
         }
     }
@@ -642,7 +631,6 @@ void CParser::enum_declaration()
         if (!lexer.is_type(l_identifier))
         {
             error("bad enum identifier " + lexer.current());
-            assert(0);;
         }
         next();
         if (lexer.is_operator(op_assign)) // 赋值
@@ -652,7 +640,6 @@ void CParser::enum_declaration()
             if (!lexer.is_integer())
             {
                 error("bad enum initializer");
-                assert(0);;
             }
             i = lexer.get_integer();
             next();
@@ -690,12 +677,10 @@ void CParser::function_parameter()
         if (!lexer.is_type(l_identifier))
         {
             error("bad parameter declaration");
-            assert(0);;
         }
         if (id->cls == Loc) // 与变量声明冲突
         {
             error("duplicate parameter declaration");
-            assert(0);;
         }
 
         match_type(l_identifier);
@@ -746,13 +731,11 @@ void CParser::function_body()
                 {
                     // invalid declaration
                     error("bad local declaration");
-                    assert(0);;
                 }
                 if (id->cls == Loc) // 变量重复声明
                 {
                     // identifier exists
                     error("duplicate local declaration");
-                    assert(0);;
                 }
                 match_type(l_identifier);
 
@@ -847,14 +830,12 @@ void CParser::global_declaration()
         {
             // invalid declaration
             error("bad global declaration");
-            assert(0);;
         }
         match_type(l_identifier);
         if (id->cls) // 变量名已经声明，则报重复声明错误
         {
             // identifier exists
             error("duplicate global declaration");
-            assert(0);;
         }
         id->type = type;
 
@@ -940,4 +921,5 @@ void CParser::save_identifier()
 void CParser::error(string_t info)
 {
     printf("[%04d, %02d]: %s\n", lexer.get_line(), lexer.get_column(), info.c_str());
+    assert(0);
 }

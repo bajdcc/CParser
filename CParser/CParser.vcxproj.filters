@@ -33,6 +33,12 @@
     <ClInclude Include="Gen.h">
       <Filter>头文件</Filter>
     </ClInclude>
+    <ClInclude Include="VirtualMachine.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="memory.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="stdafx.cpp">
@@ -54,6 +60,9 @@
       <Filter>源文件</Filter>
     </ClCompile>
     <ClCompile Include="Gen.cpp">
+      <Filter>源文件</Filter>
+    </ClCompile>
+    <ClCompile Include="VirtualMachine.cpp">
       <Filter>源文件</Filter>
     </ClCompile>
   </ItemGroup>
