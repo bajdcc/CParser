@@ -77,6 +77,7 @@ void CParser::expression(operator_t level)
             // emit code
             gen.emit(IMM);
             gen.emit(gen.save_string(lexer.get_string()));
+            gen.emit(LOAD);
             expr_type = l_ptr;
         }
         else if (lexer.is_keyword(k_sizeof)) // sizeof
@@ -245,7 +246,7 @@ void CParser::expression(operator_t level)
             // get the address of
             match_operator(op_bit_and);
             expression((operator_t)206);
-            if (gen.top() == LC || gen.top() == LI)
+            if (gen.top() == LI)
             {
                 gen.pop();
             }
@@ -319,12 +320,7 @@ void CParser::expression(operator_t level)
             auto tmp = lexer.get_operator();
             match_type(l_operator);
             expression((operator_t)tmp);
-            if (gen.top() == LC)
-            {
-                gen.top(PUSH);  // 构造副本
-                gen.emit(LC);
-            }
-            else if (gen.top() == LI)
+            if (gen.top() == LI)
             {
                 gen.top(PUSH);
                 gen.emit(LI);
@@ -358,7 +354,7 @@ void CParser::expression(operator_t level)
             {
                 // var = expr;
                 match_operator(op_assign);
-                if (gen.top() == LC || gen.top() == LI)
+                if (gen.top() == LI)
                 {
                     gen.top(PUSH); // save the lvalue's pointer
                 }
@@ -451,11 +447,6 @@ MATCH_BINOP(op_mod, MOD)
                 {
                     gen.top(PUSH);
                     gen.emit(LI);
-                }
-                else if (gen.top() == LC)
-                {
-                    gen.top(PUSH);
-                    gen.emit(LC);
                 }
                 else
                 {
@@ -678,12 +669,13 @@ void CParser::function_parameter()
         {
             error("bad parameter declaration");
         }
+
+        match_type(l_identifier);
         if (id->cls == Loc) // 与变量声明冲突
         {
             error("duplicate parameter declaration");
         }
 
-        match_type(l_identifier);
         // 保存本地变量
         // 这里为什么要多设个地方保存之前的值，是因为变量有域(大括号划分)的限制
         // 进入一个函数体时，全局变量需要保存，退出函数体时恢复

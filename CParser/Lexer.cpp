@@ -340,6 +340,8 @@ lexer_t CLexer::get_typeof(bool _unsigned) const
         DEFINE_LEXER_KEYWORD(float)
         DEFINE_LEXER_KEYWORD(double)
 #undef DEFINE_LEXER_KEYWORD
+    case k_void:
+        return l_none;
     default:
         assert(!"unsupported type");
         break;

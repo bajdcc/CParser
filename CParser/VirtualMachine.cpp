@@ -161,6 +161,7 @@ void CVirtualMachine::exec(int entry)
     auto poolsize = PAGE_SIZE;
     auto stack = STACK_BASE;
     auto data = DATA_BASE;
+    auto base = USER_BASE;
 
     auto sp = stack + poolsize; // 4KB / sizeof(int) = 1024
     vmm_set(--sp, -1);
@@ -180,7 +181,7 @@ void CVirtualMachine::exec(int entry)
         if (false)
         {
             printf("%03d> [%08x] %.4s", cycle, pc,
-                &"LEA ,IMM ,JMP ,CALL,JZ  ,JNZ ,ENT ,ADJ ,LEV ,LI  ,LC  ,SI  ,SC  ,PUSH,"
+                &"LEA ,IMM ,JMP ,CALL,JZ  ,JNZ ,ENT ,ADJ ,LEV ,LI  ,SI  ,PUSH,LOAD,"
                 "OR  ,XOR ,AND ,EQ  ,NE  ,LT  ,GT  ,LE  ,GE  ,SHL ,SHR ,ADD ,SUB ,MUL ,DIV ,MOD ,"
                 "PRTF"[op * 5]);
             if (op <= ADJ)
@@ -192,18 +193,14 @@ void CVirtualMachine::exec(int entry)
         {
             ax = vmm_get(pc++);
         } /* load immediate value to ax */
-        else if (op == LC)
-        {
-            ax = vmm_get<char>(ax);
-        } /* load character to ax, address in ax */
         else if (op == LI)
         {
             ax = vmm_get(ax);
         } /* load integer to ax, address in ax */
-        else if (op == SC)
+        else if (op == LOAD)
         {
-            ax = vmm_set<char>(vmm_get(sp++), ax);
-        } /* save character to address, value in ax, address on stack */
+            ax = data + ax;
+        } /* load the value of ax, segment = DATA_BASE */
         else if (op == SI)
         {
             vmm_set(vmm_get(sp++), ax);
@@ -214,20 +211,20 @@ void CVirtualMachine::exec(int entry)
         } /* push the value of ax onto the stack */
         else if (op == JMP)
         {
-            pc = USER_BASE + vmm_get(pc);
+            pc = base + vmm_get(pc);
         } /* jump to the address */
         else if (op == JZ)
         {
-            pc = ax ? pc + 1 : (USER_BASE + vmm_get(pc));
+            pc = ax ? pc + 1 : (base + vmm_get(pc));
         } /* jump if ax is zero */
         else if (op == JNZ)
         {
-            pc = ax ? (USER_BASE + vmm_get(pc)) : pc + 1;
+            pc = ax ? (base + vmm_get(pc)) : pc + 1;
         } /* jump if ax is zero */
         else if (op == CALL)
         {
             vmm_set(--sp, pc + 1);
-            pc = USER_BASE + vmm_get(pc);
+            pc = base + vmm_get(pc);
         } /* call subroutine */
           /* else if (op == RET) {pc = (int *)*sp++;} // return from subroutine; */
         else if (op == ENT)
@@ -253,8 +250,7 @@ void CVirtualMachine::exec(int entry)
         else if (op == PRF)
         {
             auto tmp = sp + vmm_get(pc + 1); /* 利用之后的ADJ清栈指令知道函数调用的参数个数 */
-            auto fmt = vmm_get(tmp-1);
-            ax = printf((char*)vmm_getstr(DATA_BASE + fmt), vmm_get(tmp-2), vmm_get(tmp-3), vmm_get(tmp-4), vmm_get(tmp-5), vmm_get(tmp-6));
+            ax = printf(vmm_getstr(vmm_get(tmp-1)), vmm_get(tmp-2), vmm_get(tmp-3), vmm_get(tmp-4), vmm_get(tmp-5), vmm_get(tmp-6));
         } /* load address for arguments. */
         else if (op == OR)
             ax = vmm_get(sp++) | ax;

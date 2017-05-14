@@ -63,7 +63,7 @@ void CGen::emitl(lexer_t lexer)
 {
     switch (lexer)
     {
-    case l_char: emit(LC); break;
+    case l_char: emit(LI); break;
     case l_int: emit(LI); break;
     default: assert(!"unsupported type"); break;
     }
@@ -73,7 +73,7 @@ void CGen::emits(lexer_t lexer)
 {
     switch (lexer)
     {
-    case l_char: emit(SC); break;
+    case l_char: emit(LI); break;
     case l_int: emit(SI); break;
     default: assert(!"unsupported type"); break;
     }
@@ -126,6 +126,7 @@ std::shared_ptr<sym_t> CGen::add_sym(LEX_T(string) name)
     if (sym == symbols.end())
     {
         auto s = std::make_shared<sym_t>();
+        s->cls = CLASS_NULL;
         s->name = name;
         symbols[name] = s;
         return s;
