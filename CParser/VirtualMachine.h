@@ -64,6 +64,9 @@ typedef uint32_t pte_t;
 #define DATA_BASE 0xd0000000
 /* 用户栈基址 */
 #define STACK_BASE 0xe0000000
+/* 用户堆基址 */
+#define HEAP_BASE 0xf0000000
+#define HEAP_SIZE 0x100
 
 struct __page__
 {
@@ -76,7 +79,7 @@ public:
     CVirtualMachine(std::vector<LEX_T(int)>, std::vector<LEX_T(char)>);
     ~CVirtualMachine();
 
-    void exec(int entry);
+    int exec(int entry);
 
 private:
     // 申请页框
@@ -93,16 +96,25 @@ private:
     template<class T = int> T vmm_get(uint32_t va);
     char* vmm_getstr(uint32_t va);
     template<class T = int> T vmm_set(uint32_t va, T);
+    void vmm_setstr(uint32_t va, const char* value);
+    uint32_t vmm_malloc(uint32_t size);
+    uint32_t vmm_memset(uint32_t va, uint32_t value, uint32_t count);
+    uint32_t vmm_memcmp(uint32_t src, uint32_t dst, uint32_t count);
+    template<class T = int> void vmm_pushstack(uint32_t& sp, T value);
+    template<class T = int> T vmm_popstack(uint32_t& sp);
 
 private:
     /* 内核页表 = PTE_SIZE*PAGE_SIZE */
     pde_t *pgd_kern;
     /* 内核页表内容 = PTE_COUNT*PTE_SIZE*PAGE_SIZE */
     pde_t *pte_kern;
-    /* 申请16MB物理内存(1 block=16B) */
+    /* 物理内存(1 block=16B) */
     memory_pool<1024 * 1024> memory;
     /* 页表 */
     pde_t *pgdir{ nullptr };
+    /* 堆内存 */
+    memory_pool<1024 * 1024> heap;
+    byte *heapHead;
 };
 
 #endif

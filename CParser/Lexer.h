@@ -165,7 +165,7 @@ private:
     // 正则表达式
     smatch_t sm;
     regex_t r_string{ R"(([^\\])|(?:\\(?:([bfnrtv'"\\])|(?:0(\d{1,2}))|(\d)|(?:x([[:xdigit:]]{1,2})))))", std::regex::ECMAScript | std::regex::optimize };
-    regex_t r_char{ R"('(?:([^'"\\])|(?:\\(?:([bfnrtv'"\\])|(?:0(\d{1,2}))|(\d)|(?:x([[:xdigit:]]{1,2})))))')", std::regex::ECMAScript | std::regex::optimize };
+    regex_t r_char{ R"('(?:([^'\\])|(?:\\(?:([bfnrtv'"\\])|(?:0(\d{1,2}))|(\d)|(?:x([[:xdigit:]]{1,2})))))')", std::regex::ECMAScript | std::regex::optimize };
     regex_t r_digit{ R"(^((?:\d+(\.)?\d*)(?:[eE][+-]?\d+)?)([uU])?([fFdDiIlL])?)", std::regex::ECMAScript | std::regex::optimize };
     regex_t r_alpha{ R"([[:alpha:]_]\w*)", std::regex::ECMAScript | std::regex::optimize };
     regex_t r_space{ R"(([ ]+)|((?:\r\n)+)|(\n+))", std::regex::ECMAScript | std::regex::optimize };

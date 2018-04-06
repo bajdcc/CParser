@@ -228,7 +228,7 @@ enum ins_t
 {
     LEA, IMM, JMP, CALL, JZ, JNZ, ENT, ADJ, LEV, LI, SI, PUSH, LOAD,
     OR, XOR, AND, EQ, NE, LT, GT, LE, GE, SHL, SHR, ADD, SUB, MUL, DIV, MOD,
-    PRF
+    OPEN, READ, CLOS, PRTF, MALC, MSET, MCMP, EXIT
 };
 
 enum class_t
@@ -258,6 +258,7 @@ struct sym_t
     class_t cls, _cls;
     lexer_t type, _type;
     storage_t value, _value;
+    LEX_T(int) ptr, _ptr;
 };
 
 #endif

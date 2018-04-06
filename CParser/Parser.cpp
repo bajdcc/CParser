@@ -33,6 +33,16 @@ void CParser::next()
         token = lexer.next();
     } while (token == l_newline || token == l_space || token == l_comment);
     assert(token != l_error);
+#if 0
+    if (token != l_end)
+    {
+        printf("[%04d:%03d] %-12s - %s\n", \
+            lexer.get_last_line(), \
+            lexer.get_last_column(), \
+            LEX_STRING(lexer.get_type()).c_str(), \
+            lexer.current().c_str());
+    }
+#endif
 }
 
 void CParser::program()
@@ -71,14 +81,20 @@ void CParser::expression(operator_t level)
         }
         else if (lexer.is_type(l_string)) // 字符串
         {
-            // continous string "abc" "abc"
-            match_type(l_string);
-
             // emit code
             gen.emit(IMM);
             gen.emit(gen.save_string(lexer.get_string()));
             gen.emit(LOAD);
+            match_type(l_string);
+
+            while (lexer.is_type(l_string))
+            {
+                gen.save_string(lexer.get_string());
+                match_type(l_string);
+            }
+
             expr_type = l_ptr;
+            ptr_level = 1;
         }
         else if (lexer.is_keyword(k_sizeof)) // sizeof
         {
@@ -86,6 +102,7 @@ void CParser::expression(operator_t level)
             match_keyword(k_sizeof);
             match_operator(op_lparan);
             expr_type = l_int;
+            ptr_level = 0;
 
             if (lexer.is_keyword(k_unsigned))
             {
@@ -93,6 +110,7 @@ void CParser::expression(operator_t level)
             }
 
             auto size = lexer.get_sizeof();
+            next();
 
             while (lexer.is_operator(op_times))
             {
@@ -111,6 +129,7 @@ void CParser::expression(operator_t level)
             gen.emit(size);
 
             expr_type = l_int;
+            ptr_level = 0;
         }
         else if (lexer.is_type(l_identifier)) // 变量
         {
@@ -140,7 +159,7 @@ void CParser::expression(operator_t level)
                         match_operator(op_comma);
                     }
                 }
-                match_operator(op_rparan);;
+                match_operator(op_rparan);
 
                 id = func_id;
 
@@ -168,6 +187,7 @@ void CParser::expression(operator_t level)
                     gen.emit(tmp);
                 }
                 expr_type = id->type;
+                ptr_level = id->ptr;
             }
             else if (id->cls == Num)
             {
@@ -175,6 +195,7 @@ void CParser::expression(operator_t level)
                 gen.emit(IMM);
                 gen.emit(*id);
                 expr_type = l_int;
+                ptr_level = 0;
             }
             else
             {
@@ -188,6 +209,7 @@ void CParser::expression(operator_t level)
                 {
                     gen.emit(IMM);
                     gen.emit(*id);
+                    gen.emit(LOAD);
                 }
                 else
                 {
@@ -196,6 +218,7 @@ void CParser::expression(operator_t level)
                 // emit code
                 // 读取值到ax寄存器中
                 expr_type = id->type;
+                ptr_level = id->ptr;
                 gen.emitl(expr_type);
             }
         }
@@ -206,17 +229,18 @@ void CParser::expression(operator_t level)
             if (lexer.is_type(l_keyword))
             {
                 auto tmp = parse_type();
-                match_type(l_keyword);
+                auto ptr = 0;
 
                 while (lexer.is_operator(op_times))
                 {
                     match_operator(op_times);
-                    ptr_level++;
+                    ptr++;
                 }
                 match_operator(op_rparan);
 
-                expression((operator_t)202);
+                expression(op_plus_plus);
                 expr_type = tmp;
+                ptr_level = ptr;
             }
             else
             {
@@ -229,15 +253,8 @@ void CParser::expression(operator_t level)
         {
             // dereference *<addr>
             match_operator(op_times);
-            expression((operator_t)205);
-            if (ptr_level > 0)
-            {
-                ptr_level--;
-            }
-            else
-            {
-                error("bad dereference");
-            }
+            expression(op_plus_plus);
+            ptr_level--;
 
             gen.emitl(expr_type);
         }
@@ -245,7 +262,7 @@ void CParser::expression(operator_t level)
         {
             // get the address of
             match_operator(op_bit_and);
-            expression((operator_t)206);
+            expression(op_plus_plus);
             if (gen.top() == LI)
             {
                 gen.pop();
@@ -270,6 +287,7 @@ void CParser::expression(operator_t level)
             gen.emit(EQ);
 
             expr_type = l_int;
+            ptr_level = 0;
         }
         else if (lexer.is_operator(op_bit_not))
         {
@@ -284,14 +302,16 @@ void CParser::expression(operator_t level)
             gen.emit(XOR);
 
             expr_type = l_int;
+            ptr_level = 0;
         }
         else if (lexer.is_operator(op_plus))
         {
             // +var, do nothing
             match_operator(op_plus);
-            expression((operator_t)201);
+            expression(op_plus_plus);
 
             expr_type = l_int;
+            ptr_level = 0;
         }
         else if (lexer.is_operator(op_minus))
         {
@@ -309,17 +329,18 @@ void CParser::expression(operator_t level)
                 gen.emit(IMM);
                 gen.emit(-1);
                 gen.emit(PUSH);
-                expression((operator_t)201);
+                expression(op_plus_plus);
                 gen.emit(MUL);
             }
 
             expr_type = l_int;
+            ptr_level = 0;
         }
         else if (lexer.is_operator(op_plus_plus, op_minus_minus))
         {
             auto tmp = lexer.get_operator();
             match_type(l_operator);
-            expression((operator_t)tmp);
+            expression(op_plus_plus);
             if (gen.top() == LI)
             {
                 gen.top(PUSH);
@@ -346,7 +367,8 @@ void CParser::expression(operator_t level)
         while (lexer.is_type(l_operator) && OPERATOR_PRED(lexer.get_operator()) <= OPERATOR_PRED(level)) // 优先级判断
         {
             auto tmp = expr_type;
-            if (lexer.is_operator(op_rparan))
+            auto ptr = ptr_level;
+            if (lexer.is_operator(op_rparan) || lexer.is_operator(op_rsquare) || lexer.is_operator(op_colon))
             {
                 break;
             }
@@ -364,6 +386,7 @@ void CParser::expression(operator_t level)
                 }
                 expression(op_assign);
                 expr_type = tmp;
+                ptr_level = ptr;
                 gen.emits(expr_type);
             }
             else if (lexer.is_operator(op_query))
@@ -389,41 +412,76 @@ void CParser::expression(operator_t level)
                 expression(op_query);
                 gen.emit(gen.index() + 1, addr);
             }
-#define MATCH_BINOP(op, inc) \
+#define MATCH_BINOP(op, inc, pred) \
     else if (lexer.is_operator(op)) { \
         match_operator(op); \
         gen.emit(PUSH); \
-        expression(op); \
+        expression(pred); \
         gen.emit(inc); \
         expr_type = l_int; \
+        ptr_level = 0; \
     }
 
-MATCH_BINOP(op_logical_or, OR)
-MATCH_BINOP(op_bit_xor, XOR)
-MATCH_BINOP(op_logical_and, AND)
-MATCH_BINOP(op_equal, EQ)
-MATCH_BINOP(op_not_equal, NE)
-MATCH_BINOP(op_less_than, LT)
-MATCH_BINOP(op_less_than_or_equal, LE)
-MATCH_BINOP(op_greater_than, GT)
-MATCH_BINOP(op_greater_than_or_equal, GE)
-MATCH_BINOP(op_left_shift, SHL)
-MATCH_BINOP(op_right_shift, SHR)
-MATCH_BINOP(op_plus, ADD)
-MATCH_BINOP(op_minus, SUB)
-MATCH_BINOP(op_times, MUL)
-MATCH_BINOP(op_divide, DIV)
-MATCH_BINOP(op_mod, MOD)
+MATCH_BINOP(op_bit_or, OR, op_bit_xor)
+MATCH_BINOP(op_bit_xor, XOR, op_bit_and)
+MATCH_BINOP(op_bit_and, AND, op_equal)
+MATCH_BINOP(op_equal, EQ, op_not_equal)
+MATCH_BINOP(op_not_equal, NE, op_less_than)
+MATCH_BINOP(op_less_than, LT, op_left_shift)
+MATCH_BINOP(op_less_than_or_equal, LE, op_left_shift)
+MATCH_BINOP(op_greater_than, GT, op_left_shift)
+MATCH_BINOP(op_greater_than_or_equal, GE, op_left_shift)
+MATCH_BINOP(op_left_shift, SHL, op_plus)
+MATCH_BINOP(op_right_shift, SHR, op_plus)
+MATCH_BINOP(op_times, MUL, op_plus_plus)
+MATCH_BINOP(op_divide, DIV, op_plus_plus)
+MATCH_BINOP(op_mod, MOD, op_plus_plus)
 #undef MATCH_BINOP
+            else if (lexer.is_operator(op_plus))
+            {
+                // add
+                match_operator(op_plus);
+                gen.emit(PUSH);
+                expression(op_times);
+                expr_type = l_int;
+                ptr_level = ptr;
+                expr_type = tmp;
+                if (ptr > 0) {
+                    gen.emit(PUSH);
+                    gen.emit(IMM);
+                    gen.emit(LEX_SIZEOF(ptr));
+                    gen.emit(MUL);
+                }
+                gen.emit(ADD);
+            }
+            else if (lexer.is_operator(op_minus))
+            {
+                // sub
+                match_operator(op_minus);
+                gen.emit(PUSH);
+                expression(op_times);
+                expr_type = l_int;
+                ptr_level = ptr;
+                expr_type = tmp;
+                if (ptr > 0) {
+                    gen.emit(PUSH);
+                    gen.emit(IMM);
+                    gen.emit(LEX_SIZEOF(ptr));
+                    gen.emit(MUL);
+                }
+                gen.emit(SUB);
+            }
             else if (lexer.is_operator(op_logical_or))
             {
                 // logic or
                 match_operator(op_logical_or);
                 gen.emit(JNZ);
                 auto addr = gen.index();
-                expression(op_logical_or);
-                gen.emit(gen.index() + 1, addr);
+                gen.emit(-1);
+                expression(op_logical_and);
+                gen.emit(gen.index(), addr);
                 expr_type = l_int;
+                ptr_level = 0;
             }
             else if (lexer.is_operator(op_logical_and))
             {
@@ -431,9 +489,11 @@ MATCH_BINOP(op_mod, MOD)
                 match_operator(op_logical_and);
                 gen.emit(JZ);
                 auto addr = gen.index();
-                expression(op_logical_and);
-                gen.emit(gen.index() + 1, addr);
+                gen.emit(-1);
+                expression(op_bit_or);
+                gen.emit(gen.index(), addr);
                 expr_type = l_int;
+                ptr_level = 0;
             }
             else if (lexer.is_operator(op_plus_plus, op_minus_minus))
             {
@@ -458,6 +518,7 @@ MATCH_BINOP(op_mod, MOD)
                 gen.emit(ptr_level > 0 ? LEX_SIZEOF(ptr) : 1);
                 gen.emit(tmp2 == op_plus_plus ? ADD : SUB);
                 gen.emits(expr_type);
+
                 gen.emit(PUSH);
                 gen.emit(IMM);
                 gen.emit(ptr_level > 0 ? LEX_SIZEOF(ptr) : 1);
@@ -471,7 +532,7 @@ MATCH_BINOP(op_mod, MOD)
                 expression(op_assign);
                 match_operator(op_rsquare);
 
-                if (ptr_level > 0)
+                if (ptr > 0)
                 {
                     // pointer, `not char *`
                     gen.emit(PUSH);
@@ -483,9 +544,10 @@ MATCH_BINOP(op_mod, MOD)
                 {
                     error("pointer type expected");
                 }
-                ptr_level--;
+                expr_type = tmp;
+                ptr_level = ptr - 1;
                 gen.emit(ADD);
-                gen.emitl(expr_type);
+                gen.emit(LI);
             }
             else
             {
@@ -615,15 +677,14 @@ void CParser::statement()
 void CParser::enum_declaration()
 {
     // parse enum [id] { a = 1, b = 3, ...}
-    int i;
-    i = 0;
-    while (lexer.is_operator(op_rbrace))
+    int i = 0;
+    while (!lexer.is_operator(op_rbrace))
     {
         if (!lexer.is_type(l_identifier))
         {
             error("bad enum identifier " + lexer.current());
         }
-        next();
+        match_type(l_identifier);
         if (lexer.is_operator(op_assign)) // 赋值
         {
             // like { a = 10 }
@@ -656,12 +717,13 @@ void CParser::function_parameter()
     {
         // int name, ...
         auto type = parse_type(); // 基本类型
+        auto ptr = 0;
 
         // pointer type
         while (lexer.is_operator(op_times)) // 指针
         {
             match_operator(op_times);
-            ptr_level++;
+            ptr++;
         }
 
         // parameter name
@@ -681,14 +743,17 @@ void CParser::function_parameter()
         // 进入一个函数体时，全局变量需要保存，退出函数体时恢复
         id->_cls = id->cls; id->cls = Loc;
         id->_type = id->type; id->type = type;
-        id->_value._int = id->value._int; id->value._int = params++; // 变量在栈上地址
+        id->_value._int = id->value._int; id->value._int = params; // 变量在栈上地址
+        id->_ptr = id->ptr; id->ptr = ptr;
+
+        params += 4;
 
         if (lexer.is_operator(op_comma))
         {
             match_operator(op_comma);
         }
     }
-    ebp = params + 1;
+    ebp = params + 4;
 }
 
 // 函数体
@@ -712,11 +777,12 @@ void CParser::function_body()
 
             while (!lexer.is_operator(op_semi)) // 判断语句结束
             {
+                auto ptr = 0;
                 auto type = base_type;
                 while (lexer.is_operator(op_times)) // 处理指针
                 {
                     match_operator(op_times);
-                    ptr_level++;
+                    ptr++;
                 }
 
                 if (!lexer.is_type(l_identifier))
@@ -724,19 +790,22 @@ void CParser::function_body()
                     // invalid declaration
                     error("bad local declaration");
                 }
+                match_type(l_identifier);
                 if (id->cls == Loc) // 变量重复声明
                 {
                     // identifier exists
                     error("duplicate local declaration");
                 }
-                match_type(l_identifier);
 
                 // 保存本地变量
                 // 这里为什么要多设个地方保存之前的值，是因为变量有域(大括号划分)的限制
                 // 进入一个函数体时，全局变量需要保存，退出函数体时恢复
                 id->_cls = id->cls; id->cls = Loc;
                 id->_type = id->type; id->type = type;
-                id->_value._int = id->value._int; id->value._int = ++pos_local;  // 参数在栈上地址
+                id->_value._int = id->value._int; id->value._int = pos_local;  // 参数在栈上地址
+                id->_ptr = id->ptr; id->ptr = ptr;
+
+                pos_local += 4;
 
                 if (lexer.is_operator(op_comma))
                 {
@@ -811,11 +880,12 @@ void CParser::global_declaration()
     while (!lexer.is_operator(op_semi, op_rbrace))
     {
         auto type = base_type; // 以先声明的类型为基础
+        auto ptr = 0;
         // 处理指针, 像`int ****x;`
         while (lexer.is_operator(op_times))
         {
             match_operator(op_times);
-            ptr_level++;
+            ptr++;
         }
 
         if (!lexer.is_type(l_identifier)) // 不存在变量名则报错
@@ -830,6 +900,7 @@ void CParser::global_declaration()
             error("duplicate global declaration");
         }
         id->type = type;
+        id->ptr = ptr;
 
         if (lexer.is_operator(op_lparan)) // 有左括号则应判定是函数声明
         {
@@ -908,10 +979,12 @@ lexer_t CParser::parse_type()
 void CParser::save_identifier()
 {
     id = gen.add_sym(lexer.get_identifier());
+    if (id->ptr == 0)
+        id->ptr = ptr_level;
 }
 
 void CParser::error(string_t info)
 {
-    printf("[%04d, %02d]: %s\n", lexer.get_line(), lexer.get_column(), info.c_str());
+    printf("[%04d:%03d] ERROR: %s\n", lexer.get_line(), lexer.get_column(), info.c_str());
     assert(0);
 }

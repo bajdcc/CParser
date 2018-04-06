@@ -73,7 +73,7 @@ void CGen::emits(lexer_t lexer)
 {
     switch (lexer)
     {
-    case l_char: emit(LI); break;
+    case l_char: emit(SI); break;
     case l_int: emit(SI); break;
     default: assert(!"unsupported type"); break;
     }
@@ -126,6 +126,7 @@ std::shared_ptr<sym_t> CGen::add_sym(LEX_T(string) name)
     if (sym == symbols.end())
     {
         auto s = std::make_shared<sym_t>();
+        s->ptr = 0;
         s->cls = CLASS_NULL;
         s->name = name;
         symbols[name] = s;
@@ -158,7 +159,14 @@ void CGen::eval()
 
 void CGen::builtin()
 {
-    builtin_add("printf", Sys, l_int, PRF);
+    builtin_add("printf", Sys, l_int, PRTF);
+    builtin_add("memcmp", Sys, l_int, MCMP);
+    builtin_add("exit", Sys, l_int, EXIT);
+    builtin_add("memset", Sys, l_int, MSET);
+    builtin_add("open", Sys, l_int, OPEN);
+    builtin_add("read", Sys, l_int, READ);
+    builtin_add("close", Sys, l_int, CLOS);
+    builtin_add("malloc", Sys, l_int, MALC);
 }
 
 void CGen::builtin_add(string_t name, class_t cls, lexer_t type, LEX_T(int) value)

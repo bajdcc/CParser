@@ -1,6 +1,14 @@
 #include "stdafx.h"
 #include "VirtualMachine.h"
 
+int g_argc;
+int g_argv;
+
+#define LOG 1
+#define INC_PTR 4
+#define VMM_ARG(s, p) ((s) + vmm_get((p) + INC_PTR) * INC_PTR)
+#define VMM_ARGS(t, n) vmm_get(t - (n) * INC_PTR)
+
 uint32_t CVirtualMachine::pmm_alloc()
 {
     auto page = PAGE_ALIGN_UP((uint32_t)memory.alloc_array<byte>(PAGE_SIZE * 2));
@@ -100,7 +108,7 @@ T CVirtualMachine::vmm_get(uint32_t va)
     uint32_t pa;
     if (vmm_ismap(va, &pa))
     {
-        return *((T*)pa + OFFSET_INDEX(va));
+        return *(T*)((byte*)pa + OFFSET_INDEX(va));
     }
     vmm_map(va, pmm_alloc(), PTE_U | PTE_P | PTE_R);
     assert(0);
@@ -113,13 +121,90 @@ T CVirtualMachine::vmm_set(uint32_t va, T value)
     uint32_t pa;
     if (vmm_ismap(va, &pa))
     {
-        *((T*)pa + OFFSET_INDEX(va)) = value;
+        *(T*)((byte*)pa + OFFSET_INDEX(va)) = value;
         return value;
     }
     vmm_map(va, pmm_alloc(), PTE_U | PTE_P | PTE_R);
     assert(0);
     return vmm_set(va, value);
 }
+
+void CVirtualMachine::vmm_setstr(uint32_t va, const char *value)
+{
+    auto len = strlen(value);
+    for (uint32_t i = 0; i < len; i++)
+    {
+        vmm_set(va + i, value[i]);
+    }
+    vmm_set(va + len, '\0');
+}
+
+uint32_t vmm_pa2va(uint32_t base, uint32_t size, uint32_t pa)
+{
+    return base + (pa & (size * PAGE_SIZE - 1));
+}
+
+uint32_t CVirtualMachine::vmm_malloc(uint32_t size)
+{
+    printf("[MALLOC] Available: %08X\n", heap.available() * 0x10);
+    auto ptr = heap.alloc_array<byte>(size);
+    if (ptr == nullptr)
+    {
+        printf("out of memory");
+        exit(-1);
+    }
+    if (ptr < heapHead)
+    {
+        heap.alloc_array<byte>(heapHead - ptr);
+        return vmm_malloc(size);
+    }
+    if (ptr + size >= heapHead + HEAP_SIZE * PAGE_SIZE)
+    {
+        printf("out of memory");
+        exit(-1);
+    }
+#if 1
+    printf("[MALLOC] %p> %08X bytes\n", ptr, size);
+#endif
+    return vmm_pa2va(HEAP_BASE, HEAP_SIZE, (uint32_t)ptr);
+}
+
+uint32_t CVirtualMachine::vmm_memset(uint32_t va, uint32_t value, uint32_t count)
+{
+    for (uint32_t i = 0; i < count; i++)
+    {
+        vmm_set(va + i, value);
+    }
+    return 0;
+}
+
+uint32_t CVirtualMachine::vmm_memcmp(uint32_t src, uint32_t dst, uint32_t count)
+{
+    for (uint32_t i = 0; i < count; i++)
+    {
+        if (vmm_get<byte>(src + i) > vmm_get<byte>(dst + i))
+            return 1;
+        if (vmm_get<byte>(src + i) < vmm_get<byte>(dst + i))
+            return -1;
+    }
+    return 0;
+}
+
+template <class T>
+void CVirtualMachine::vmm_pushstack(uint32_t& sp, T value)
+{
+    sp -= sizeof(T);
+    vmm_set(sp, value);
+}
+
+template <class T>
+T CVirtualMachine::vmm_popstack(uint32_t& sp)
+{
+    T t = vmm_get(sp);
+    sp += sizeof(T);
+    return t;
+}
+
 
 //-----------------------------------------
 
@@ -129,25 +214,57 @@ CVirtualMachine::CVirtualMachine(std::vector<LEX_T(int)> text, std::vector<LEX_T
     vmm_init();
     uint32_t pa;
     /* 映射4KB的代码空间 */
-    vmm_map(USER_BASE, (uint32_t)pmm_alloc(), PTE_U | PTE_P | PTE_R); // 用户代码空间
-    if (vmm_ismap(USER_BASE, &pa))
     {
-        for (uint32_t i = 0; i < text.size(); ++i)
+        auto size = PAGE_SIZE / sizeof(int);
+        for (uint32_t i = 0, start = 0; start < text.size(); ++i, start += size)
         {
-            *((int*)pa + i) = text[i];
+            vmm_map(USER_BASE + PAGE_SIZE * i, (uint32_t)pmm_alloc(), PTE_U | PTE_P | PTE_R); // 用户代码空间
+            if (vmm_ismap(USER_BASE + PAGE_SIZE * i, &pa))
+            {
+                auto s = start + size > text.size() ? (text.size() & (size - 1)) : size;
+                for (uint32_t j = 0; j < s; ++j)
+                {
+                    *((uint32_t*)pa + j) = text[start + j];
+#if 1
+                    printf("[%p]> [%08X] %08X\n", (int*)pa + j, USER_BASE + PAGE_SIZE * i + j * 4, vmm_get<uint32_t>(USER_BASE + PAGE_SIZE * i + j * 4));
+#endif
+                }
+            }
         }
     }
     /* 映射4KB的数据空间 */
-    vmm_map(DATA_BASE, (uint32_t)pmm_alloc(), PTE_U | PTE_P | PTE_R); // 用户数据空间
-    if (vmm_ismap(DATA_BASE, &pa))
     {
-        for (uint32_t i = 0; i < data.size(); ++i)
+        auto size = PAGE_SIZE;
+        for (uint32_t i = 0, start = 0; start < data.size(); ++i, start += size)
         {
-            *((char*)pa + i) = data[i];
+            vmm_map(DATA_BASE + PAGE_SIZE * i, (uint32_t)pmm_alloc(), PTE_U | PTE_P | PTE_R); // 用户数据空间
+            if (vmm_ismap(DATA_BASE + PAGE_SIZE * i, &pa))
+            {
+                auto s = start + size > data.size() ? (data.size() & (size - 1)) : size;
+                for (uint32_t j = 0; j < s; ++j)
+                {
+                    *((char*)pa + j) = data[start + j];
+#if 0
+                    printf("[%p]> [%08X] %d\n", (char*)pa + j, DATA_BASE + PAGE_SIZE * i + j, vmm_get<byte>(DATA_BASE + PAGE_SIZE * i + j));
+#endif
+                }
+            }
         }
     }
     /* 映射4KB的栈空间 */
     vmm_map(STACK_BASE, (uint32_t)pmm_alloc(), PTE_U | PTE_P | PTE_R); // 用户栈空间
+    /* 映射16KB的堆空间 */
+    {
+        auto head = heap.alloc_array<byte>(PAGE_SIZE * 5);
+        heapHead = head;
+        heap.free_array(heapHead); // 得到内存池起始地址
+        heapHead = (byte*)PAGE_ALIGN_UP((uint32_t)head);
+        memset(heapHead, 0, PAGE_SIZE);
+        for (int i = 0; i < HEAP_SIZE; ++i)
+        {
+            vmm_map(HEAP_BASE + PAGE_SIZE * i, (uint32_t)heapHead + PAGE_SIZE * i, PTE_U | PTE_P | PTE_R);
+        }
+    }
 }
 
 CVirtualMachine::~CVirtualMachine()
@@ -156,7 +273,7 @@ CVirtualMachine::~CVirtualMachine()
     free(pte_kern);
 }
 
-void CVirtualMachine::exec(int entry)
+int CVirtualMachine::exec(int entry)
 {
     auto poolsize = PAGE_SIZE;
     auto stack = STACK_BASE;
@@ -164,130 +281,243 @@ void CVirtualMachine::exec(int entry)
     auto base = USER_BASE;
 
     auto sp = stack + poolsize; // 4KB / sizeof(int) = 1024
-    vmm_set(--sp, -1);
 
-    auto pc = USER_BASE + entry;
+    {
+        auto argvs = vmm_malloc(2 * INC_PTR);
+        auto str = vmm_malloc(2);
+        vmm_setstr(str, "\0");
+        vmm_set(argvs, str);
+        str = vmm_malloc(10);
+        vmm_setstr(str, "test.txt");
+        vmm_set(argvs + 4, str);
+
+        vmm_pushstack(sp, EXIT);
+        auto tmp = sp;
+        vmm_pushstack(sp, 2);
+        vmm_pushstack(sp, argvs);
+        vmm_pushstack(sp, tmp);
+    }
+
+    auto pc = USER_BASE + entry * INC_PTR;
     auto ax = 0;
     auto bp = 0;
 
     auto cycle = 0;
-    while (pc != -1)
+    while (true)
     {
         cycle++;
-        auto op = vmm_get(pc++); // get next operation code
+        auto op = vmm_get(pc); // get next operation code
+        pc += INC_PTR;
 
-        assert(op <= PRF);
+#if LOG
+        assert(op <= EXIT);
         // print debug info
-        if (false)
         {
-            printf("%03d> [%08x] %.4s", cycle, pc,
+            printf("%04d> [%08X] %02d %.4s", cycle, pc, op,
                 &"LEA ,IMM ,JMP ,CALL,JZ  ,JNZ ,ENT ,ADJ ,LEV ,LI  ,SI  ,PUSH,LOAD,"
                 "OR  ,XOR ,AND ,EQ  ,NE  ,LT  ,GT  ,LE  ,GE  ,SHL ,SHR ,ADD ,SUB ,MUL ,DIV ,MOD ,"
-                "PRTF"[op * 5]);
-            if (op <= ADJ)
+                "OPEN,READ,CLOS,PRTF,MALC,MSET,MCMP,EXIT"[op * 5]);
+            if (op == PUSH)
+                printf(" %08X\n", (uint32_t)ax);
+            else if (op <= ADJ)
                 printf(" %d\n", vmm_get(pc));
             else
                 printf("\n");
         }
-        if (op == IMM)
+#endif
+        switch (op)
         {
-            ax = vmm_get(pc++);
+        case IMM:
+        {
+            ax = vmm_get(pc);
+            pc += INC_PTR;
         } /* load immediate value to ax */
-        else if (op == LI)
+        break;
+        case LI:
         {
             ax = vmm_get(ax);
         } /* load integer to ax, address in ax */
-        else if (op == LOAD)
+        break;
+        case LOAD:
         {
-            ax = data + ax;
+            ax = data | ((ax * INC_PTR) & (PAGE_SIZE - 1));
         } /* load the value of ax, segment = DATA_BASE */
-        else if (op == SI)
+        break;
+        case SI:
         {
-            vmm_set(vmm_get(sp++), ax);
+            vmm_set(vmm_popstack(sp), ax);
         } /* save integer to address, value in ax, address on stack */
-        else if (op == PUSH)
+        break;
+        case PUSH:
         {
-            vmm_set(--sp, ax);
+            vmm_pushstack(sp, ax);
         } /* push the value of ax onto the stack */
-        else if (op == JMP)
+        break;
+        case JMP:
         {
-            pc = base + vmm_get(pc);
+            pc = base + vmm_get(pc) * INC_PTR;
         } /* jump to the address */
-        else if (op == JZ)
+        break;
+        case JZ:
         {
-            pc = ax ? pc + 1 : (base + vmm_get(pc));
+            pc = ax ? pc + INC_PTR : (base + vmm_get(pc) * INC_PTR);
         } /* jump if ax is zero */
-        else if (op == JNZ)
+        break;
+        case JNZ:
         {
-            pc = ax ? (base + vmm_get(pc)) : pc + 1;
+            pc = ax ? (base + vmm_get(pc) * INC_PTR) : pc + INC_PTR;
         } /* jump if ax is zero */
-        else if (op == CALL)
+        break;
+        case CALL:
         {
-            vmm_set(--sp, pc + 1);
-            pc = base + vmm_get(pc);
+            vmm_pushstack(sp, pc + INC_PTR);
+            pc = base + vmm_get(pc) * INC_PTR;
         } /* call subroutine */
-          /* else if (op == RET) {pc = (int *)*sp++;} // return from subroutine; */
-        else if (op == ENT)
+          /* break;case RET: {pc = (int *)*sp++;} // return from subroutine; */
+        break;
+        case ENT:
         {
-            vmm_set(--sp, bp);
+            vmm_pushstack(sp, bp);
             bp = sp;
-            sp = sp - vmm_get(pc++);
+            sp = sp - vmm_get(pc) * INC_PTR;
+            pc += INC_PTR;
         } /* make new stack frame */
-        else if (op == ADJ)
+        break;
+        case ADJ:
         {
-            sp = sp + vmm_get(pc++);
+            sp = sp + vmm_get(pc) * INC_PTR;
+            pc += INC_PTR;
         } /* add esp, <size> */
-        else if (op == LEV)
+        break;
+        case LEV:
         {
             sp = bp;
-            bp = vmm_get(sp++);
-            pc = vmm_get(sp++);
+            bp = vmm_popstack(sp);
+            pc = vmm_popstack(sp);
         } /* restore call frame and PC */
-        else if (op == LEA)
+        break;
+        case LEA:
         {
-            ax = bp + vmm_get(pc++);
+            ax = bp + vmm_get(pc);
+            pc += INC_PTR;
         } /* load address for arguments. */
-        else if (op == PRF)
+        break;
+        case OR:
+            ax = vmm_popstack(sp) | ax;
+            break;
+        case XOR:
+            ax = vmm_popstack(sp) ^ ax;
+            break;
+        case AND:
+            ax = vmm_popstack(sp) & ax;
+            break;
+        case EQ:
+            ax = vmm_popstack(sp) == ax;
+            break;
+        case NE:
+            ax = vmm_popstack(sp) != ax;
+            break;
+        case LT:
+            ax = vmm_popstack(sp) < ax;
+            break;
+        case LE:
+            ax = vmm_popstack(sp) <= ax;
+            break;
+        case GT:
+            ax = vmm_popstack(sp) > ax;
+            break;
+        case GE:
+            ax = vmm_popstack(sp) >= ax;
+            break;
+        case SHL:
+            ax = vmm_popstack(sp) << ax;
+            break;
+        case SHR:
+            ax = vmm_popstack(sp) >> ax;
+            break;
+        case ADD:
+            ax = vmm_popstack(sp) + ax;
+            break;
+        case SUB:
+            ax = vmm_popstack(sp) - ax;
+            break;
+        case MUL:
+            ax = vmm_popstack(sp) * ax;
+            break;
+        case DIV:
+            ax = vmm_popstack(sp) / ax;
+            break;
+        case MOD:
+            ax = vmm_popstack(sp) % ax;
+            break;
+            // --------------------------------------
+        case PRTF:
         {
-            auto tmp = sp + vmm_get(pc + 1); /* 利用之后的ADJ清栈指令知道函数调用的参数个数 */
-            ax = printf(vmm_getstr(vmm_get(tmp-1)), vmm_get(tmp-2), vmm_get(tmp-3), vmm_get(tmp-4), vmm_get(tmp-5), vmm_get(tmp-6));
-        } /* load address for arguments. */
-        else if (op == OR)
-            ax = vmm_get(sp++) | ax;
-        else if (op == XOR)
-            ax = vmm_get(sp++) ^ ax;
-        else if (op == AND)
-            ax = vmm_get(sp++) & ax;
-        else if (op == EQ)
-            ax = vmm_get(sp++) == ax;
-        else if (op == NE)
-            ax = vmm_get(sp++) != ax;
-        else if (op == LT)
-            ax = vmm_get(sp++) < ax;
-        else if (op == LE)
-            ax = vmm_get(sp++) <= ax;
-        else if (op == GT)
-            ax = vmm_get(sp++) > ax;
-        else if (op == GE)
-            ax = vmm_get(sp++) >= ax;
-        else if (op == SHL)
-            ax = vmm_get(sp++) << ax;
-        else if (op == SHR)
-            ax = vmm_get(sp++) >> ax;
-        else if (op == ADD)
-            ax = vmm_get(sp++) + ax;
-        else if (op == SUB)
-            ax = vmm_get(sp++) - ax;
-        else if (op == MUL)
-            ax = vmm_get(sp++) * ax;
-        else if (op == DIV)
-            ax = vmm_get(sp++) / ax;
-        else if (op == MOD)
-            ax = vmm_get(sp++) % ax;
-        else
-        {
-            printf("unknown instruction:%d\n", op);
-            assert(0);
+            auto tmp = VMM_ARG(sp, pc); /* 利用之后的ADJ清栈指令知道函数调用的参数个数 */
+            ax = printf(vmm_getstr(VMM_ARGS(tmp, 1)), VMM_ARGS(tmp, 2), VMM_ARGS(tmp, 3), VMM_ARGS(tmp, 4), VMM_ARGS(tmp, 5), VMM_ARGS(tmp, 6));
         }
+        break;
+        case EXIT:
+        {
+            printf("exit(%d)\n", ax);
+            return ax;
+        }
+        break;
+        case OPEN:
+        {
+            auto tmp = VMM_ARG(sp, pc);
+            ax = (int)fopen(vmm_getstr(VMM_ARGS(tmp, 1)), "r");
+        }
+        break;
+        case READ:
+        {
+            auto tmp = VMM_ARG(sp, pc);
+            ax = (int)fread((void*)VMM_ARGS(tmp, 2), VMM_ARGS(tmp, 3), 1, (FILE*)VMM_ARGS(tmp, 1));
+        }
+        break;
+        case CLOS:
+        {
+            auto tmp = VMM_ARG(sp, pc);
+            ax = (int)fclose((FILE*)VMM_ARGS(tmp, 1));
+        }
+        break;
+        case MALC:
+        {
+            auto tmp = VMM_ARG(sp, pc);
+            ax = (int)vmm_malloc(VMM_ARGS(tmp, 1));
+        }
+        break;
+        case MSET:
+        {
+            auto tmp = VMM_ARG(sp, pc);
+            ax = (int)vmm_memset(VMM_ARGS(tmp, 1), VMM_ARGS(tmp, 2), VMM_ARGS(tmp, 3));
+        }
+        break;
+        case MCMP:
+        {
+            auto tmp = VMM_ARG(sp, pc);
+            ax = (int)vmm_memcmp(VMM_ARGS(tmp, 1), VMM_ARGS(tmp, 2), VMM_ARGS(tmp, 3));
+        }
+        break;
+        default:
+            {
+                printf("unknown instruction:%d\n", op);
+                assert(0);
+                exit(-1);
+            }
+        }
+
+#if 0
+    {
+    printf("\n---------------- STACK BEGIN <<<< \n");
+    printf("AX: %08X BP: %08X SP: %08X\n", ax, bp, sp);
+    for (uint32_t i = sp; i < STACK_BASE + PAGE_SIZE; i += 4)
+    {
+        printf("[%08X]> %08X\n", i, vmm_get<uint32_t>(i));
     }
+    printf("---------------- STACK END >>>>\n\n");
+    }
+#endif
+    }
+    return 0;
 }

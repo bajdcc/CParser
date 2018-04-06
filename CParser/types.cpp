@@ -4,6 +4,7 @@
 string_t lexer_string_list[] =
 {
     "none",
+    "ptr",
     "error",
     "char",
     "uchar",
