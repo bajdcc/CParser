@@ -81,15 +81,23 @@ void CParser::expression(operator_t level)
         }
         else if (lexer.is_type(l_string)) // 字符串
         {
+            auto idx = gen.save_string(lexer.get_string());
+#if 1
+            printf("[%04d:%03d] String> %04X '%s'\n", lexer.get_line(), lexer.get_column(), idx, lexer.get_string().c_str());
+#endif
+
             // emit code
             gen.emit(IMM);
-            gen.emit(gen.save_string(lexer.get_string()));
+            gen.emit(idx);
             gen.emit(LOAD);
             match_type(l_string);
 
             while (lexer.is_type(l_string))
             {
-                gen.save_string(lexer.get_string());
+                idx = gen.save_string(lexer.get_string());
+#if 0
+                printf("[%04d:%03d] String> %04X '%s'\n", lexer.get_line(), lexer.get_column(), idx, lexer.get_string().c_str());
+#endif
                 match_type(l_string);
             }
 
@@ -219,7 +227,7 @@ void CParser::expression(operator_t level)
                 // 读取值到ax寄存器中
                 expr_type = id->type;
                 ptr_level = id->ptr;
-                gen.emitl(expr_type);
+                gen.emitl(id->ptr > 0 ? l_int : expr_type);
             }
         }
         else if (lexer.is_operator(op_lparan)) // 强制转换
@@ -256,14 +264,14 @@ void CParser::expression(operator_t level)
             expression(op_plus_plus);
             ptr_level--;
 
-            gen.emitl(expr_type);
+            gen.emitl(id->ptr > 0 ? l_int : expr_type);
         }
         else if (lexer.is_operator(op_bit_and)) // 取地址
         {
             // get the address of
             match_operator(op_bit_and);
             expression(op_plus_plus);
-            if (gen.top() == LI)
+            if (gen.top() == LI || gen.top() == LC)
             {
                 gen.pop();
             }
@@ -346,6 +354,11 @@ void CParser::expression(operator_t level)
                 gen.top(PUSH);
                 gen.emit(LI);
             }
+            else if (gen.top() == LC)
+            {
+                gen.top(PUSH);
+                gen.emit(LC);
+            }
             else
             {
                 error("bad lvalue of pre-increment");
@@ -354,7 +367,7 @@ void CParser::expression(operator_t level)
             gen.emit(IMM);
             gen.emit(ptr_level > 0 ? LEX_SIZEOF(ptr) : 1);
             gen.emit(tmp == op_plus_plus ? ADD : SUB);
-            gen.emits(expr_type);
+            gen.emits(ptr_level > 0 ? l_int : expr_type);
         }
         else
         {
@@ -376,7 +389,7 @@ void CParser::expression(operator_t level)
             {
                 // var = expr;
                 match_operator(op_assign);
-                if (gen.top() == LI)
+                if (gen.top() == LI || gen.top() == LC)
                 {
                     gen.top(PUSH); // save the lvalue's pointer
                 }
@@ -387,7 +400,7 @@ void CParser::expression(operator_t level)
                 expression(op_assign);
                 expr_type = tmp;
                 ptr_level = ptr;
-                gen.emits(expr_type);
+                gen.emits(ptr_level > 0 ? l_int : expr_type);
             }
             else if (lexer.is_operator(op_query))
             {
@@ -508,6 +521,11 @@ MATCH_BINOP(op_mod, MOD, op_plus_plus)
                     gen.top(PUSH);
                     gen.emit(LI);
                 }
+                else if (gen.top() == LC)
+                {
+                    gen.top(PUSH);
+                    gen.emit(LC);
+                }
                 else
                 {
                     error("bad value in increment");
@@ -517,7 +535,7 @@ MATCH_BINOP(op_mod, MOD, op_plus_plus)
                 gen.emit(IMM);
                 gen.emit(ptr_level > 0 ? LEX_SIZEOF(ptr) : 1);
                 gen.emit(tmp2 == op_plus_plus ? ADD : SUB);
-                gen.emits(expr_type);
+                gen.emits(ptr_level > 0 ? l_int : expr_type);
 
                 gen.emit(PUSH);
                 gen.emit(IMM);
@@ -535,19 +553,22 @@ MATCH_BINOP(op_mod, MOD, op_plus_plus)
                 if (ptr > 0)
                 {
                     // pointer, `not char *`
-                    gen.emit(PUSH);
-                    gen.emit(IMM);
-                    gen.emit(LEX_SIZEOF(int));
-                    gen.emit(MUL);
+                    if (id->type != l_char)
+                    {
+                        gen.emit(PUSH);
+                        gen.emit(IMM);
+                        gen.emit(LEX_SIZEOF(int));
+                        gen.emit(MUL);
+                    }
+                    gen.emit(ADD);
+                    gen.emit(LI);
+                    expr_type = tmp;
+                    ptr_level = ptr - 1;
                 }
                 else
                 {
                     error("pointer type expected");
                 }
-                expr_type = tmp;
-                ptr_level = ptr - 1;
-                gen.emit(ADD);
-                gen.emit(LI);
             }
             else
             {
@@ -874,7 +895,9 @@ void CParser::global_declaration()
     }
 
     // 解析基本类型，即变量声明时的类型
-    parse_type();
+    base_type = parse_type();
+    if (base_type == l_none)
+        base_type = l_int;
 
     // 处理逗号分隔的变量声明
     while (!lexer.is_operator(op_semi, op_rbrace))
@@ -906,13 +929,22 @@ void CParser::global_declaration()
         {
             id->cls = Fun;
             id->value._int = gen.index(); // 记录函数地址
+#if 1
+            printf("[%04d:%03d] Function> %04X '%s'\n", lexer.get_line(), lexer.get_column(), id->value._int * 4, id->name.c_str());
+#endif
             function_declaration();
+#if 1
+            printf("[%04d:%03d] Function> %04X '%s'\n", lexer.get_line(), lexer.get_column(), id->value._int * 4, id->name.c_str());
+#endif
         }
         else
         {
             // 处理变量声明
             id->cls = Glo; // 全局变量
             id->value._int = gen.get_data(); // 记录变量地址
+#if 1
+            printf("[%04d:%03d] Global> %04X '%s'\n", lexer.get_line(), lexer.get_column(), id->value._int, id->name.c_str());
+#endif
         }
 
         if (lexer.is_operator(op_comma))

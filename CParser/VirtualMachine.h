@@ -66,7 +66,13 @@ typedef uint32_t pte_t;
 #define STACK_BASE 0xe0000000
 /* 用户堆基址 */
 #define HEAP_BASE 0xf0000000
-#define HEAP_SIZE 0x100
+/* 用户堆大小 */
+#define HEAP_SIZE 1000
+
+/* 物理内存(单位：16B) */
+#define PHY_MEM (16 * 1024)
+/* 堆内存(单位：16B) */
+#define HEAP_MEM (256 * 1024)
 
 struct __page__
 {
@@ -103,17 +109,19 @@ private:
     template<class T = int> void vmm_pushstack(uint32_t& sp, T value);
     template<class T = int> T vmm_popstack(uint32_t& sp);
 
+    void init_args(uint32_t *args, uint32_t sp, uint32_t pc, bool converted = false);
+
 private:
     /* 内核页表 = PTE_SIZE*PAGE_SIZE */
     pde_t *pgd_kern;
     /* 内核页表内容 = PTE_COUNT*PTE_SIZE*PAGE_SIZE */
     pde_t *pte_kern;
     /* 物理内存(1 block=16B) */
-    memory_pool<1024 * 1024> memory;
+    memory_pool<PHY_MEM> memory;
     /* 页表 */
     pde_t *pgdir{ nullptr };
     /* 堆内存 */
-    memory_pool<1024 * 1024> heap;
+    memory_pool<HEAP_MEM> heap;
     byte *heapHead;
 };
 

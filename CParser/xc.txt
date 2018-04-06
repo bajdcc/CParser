@@ -1305,7 +1305,7 @@ int main(int argc, char **argv)
         return -1;
     }
 
-    poolsize = 50 * 1024; // arbitrary size
+    poolsize = 256 * 1024; // arbitrary size
     line = 1;
 
     // allocate memory

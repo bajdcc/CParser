@@ -4,9 +4,9 @@
 int g_argc;
 int g_argv;
 
-#define LOG 1
+#define LOG 0
 #define INC_PTR 4
-#define VMM_ARG(s, p) ((s) + vmm_get((p) + INC_PTR) * INC_PTR)
+#define VMM_ARG(s, p) ((s) + p * INC_PTR)
 #define VMM_ARGS(t, n) vmm_get(t - (n) * INC_PTR)
 
 uint32_t CVirtualMachine::pmm_alloc()
@@ -146,7 +146,9 @@ uint32_t vmm_pa2va(uint32_t base, uint32_t size, uint32_t pa)
 
 uint32_t CVirtualMachine::vmm_malloc(uint32_t size)
 {
-    printf("[MALLOC] Available: %08X\n", heap.available() * 0x10);
+#if 0
+    printf("MALLOC> Available: %08X\n", heap.available() * 0x10);
+#endif
     auto ptr = heap.alloc_array<byte>(size);
     if (ptr == nullptr)
     {
@@ -163,17 +165,21 @@ uint32_t CVirtualMachine::vmm_malloc(uint32_t size)
         printf("out of memory");
         exit(-1);
     }
+    auto va = vmm_pa2va(HEAP_BASE, HEAP_SIZE, (uint32_t)ptr);
 #if 1
-    printf("[MALLOC] %p> %08X bytes\n", ptr, size);
+    printf("MALLOC> V=%08X P=%p> %08X bytes\n", va, ptr, size);
 #endif
-    return vmm_pa2va(HEAP_BASE, HEAP_SIZE, (uint32_t)ptr);
+    return va;
 }
 
 uint32_t CVirtualMachine::vmm_memset(uint32_t va, uint32_t value, uint32_t count)
 {
     for (uint32_t i = 0; i < count; i++)
     {
-        vmm_set(va + i, value);
+#if 0
+        printf("MEMSET> V=%08X\n", va + i);
+#endif
+        vmm_set<byte>(va + i, value);
     }
     return 0;
 }
@@ -225,7 +231,7 @@ CVirtualMachine::CVirtualMachine(std::vector<LEX_T(int)> text, std::vector<LEX_T
                 for (uint32_t j = 0; j < s; ++j)
                 {
                     *((uint32_t*)pa + j) = text[start + j];
-#if 1
+#if 0
                     printf("[%p]> [%08X] %08X\n", (int*)pa + j, USER_BASE + PAGE_SIZE * i + j * 4, vmm_get<uint32_t>(USER_BASE + PAGE_SIZE * i + j * 4));
 #endif
                 }
@@ -273,6 +279,20 @@ CVirtualMachine::~CVirtualMachine()
     free(pte_kern);
 }
 
+void CVirtualMachine::init_args(uint32_t *args, uint32_t sp, uint32_t pc, bool converted /*= false*/)
+{
+    auto num = vmm_get(pc + INC_PTR); /* 利用之后的ADJ清栈指令知道函数调用的参数个数 */
+    auto tmp = VMM_ARG(sp, num);
+    for (int k = 0; k < num; k++)
+    {
+        auto arg = VMM_ARGS(tmp, k + 1);
+        if (converted && (arg & DATA_BASE))
+            args[k] = (uint32_t)vmm_getstr(arg);
+        else
+            args[k] = (uint32_t)arg;
+    }
+}
+
 int CVirtualMachine::exec(int entry)
 {
     auto poolsize = PAGE_SIZE;
@@ -303,18 +323,19 @@ int CVirtualMachine::exec(int entry)
     auto bp = 0;
 
     auto cycle = 0;
+    uint32_t args[6];
     while (true)
     {
         cycle++;
         auto op = vmm_get(pc); // get next operation code
         pc += INC_PTR;
 
-#if LOG
+#if 1
         assert(op <= EXIT);
         // print debug info
         {
             printf("%04d> [%08X] %02d %.4s", cycle, pc, op,
-                &"LEA ,IMM ,JMP ,CALL,JZ  ,JNZ ,ENT ,ADJ ,LEV ,LI  ,SI  ,PUSH,LOAD,"
+                &"LEA ,IMM ,JMP ,CALL,JZ  ,JNZ ,ENT ,ADJ ,LEV ,LI  ,SI  ,LC  ,SC  ,PUSH,LOAD,"
                 "OR  ,XOR ,AND ,EQ  ,NE  ,LT  ,GT  ,LE  ,GE  ,SHL ,SHR ,ADD ,SUB ,MUL ,DIV ,MOD ,"
                 "OPEN,READ,CLOS,PRTF,MALC,MSET,MCMP,EXIT"[op * 5]);
             if (op == PUSH)
@@ -338,15 +359,25 @@ int CVirtualMachine::exec(int entry)
             ax = vmm_get(ax);
         } /* load integer to ax, address in ax */
         break;
-        case LOAD:
-        {
-            ax = data | ((ax * INC_PTR) & (PAGE_SIZE - 1));
-        } /* load the value of ax, segment = DATA_BASE */
-        break;
         case SI:
         {
             vmm_set(vmm_popstack(sp), ax);
         } /* save integer to address, value in ax, address on stack */
+        break;
+        case LC:
+        {
+            ax = vmm_get<byte>(ax);
+        } /* load integer to ax, address in ax */
+        break;
+        case SC:
+        {
+            vmm_set<byte>(vmm_popstack(sp), ax & 0xff);
+        } /* save integer to address, value in ax, address on stack */
+        break;
+        case LOAD:
+        {
+            ax = data | ((ax) & (PAGE_SIZE - 1));
+        } /* load the value of ax, segment = DATA_BASE */
         break;
         case PUSH:
         {
@@ -372,6 +403,9 @@ int CVirtualMachine::exec(int entry)
         {
             vmm_pushstack(sp, pc + INC_PTR);
             pc = base + vmm_get(pc) * INC_PTR;
+#if 1
+            printf("CALL> PC=%08X\n", pc);
+#endif
         } /* call subroutine */
           /* break;case RET: {pc = (int *)*sp++;} // return from subroutine; */
         break;
@@ -394,6 +428,9 @@ int CVirtualMachine::exec(int entry)
             sp = bp;
             bp = vmm_popstack(sp);
             pc = vmm_popstack(sp);
+#if 1
+            printf("RETURN> PC=%08X\n", pc);
+#endif
         } /* restore call frame and PC */
         break;
         case LEA:
@@ -453,8 +490,8 @@ int CVirtualMachine::exec(int entry)
             // --------------------------------------
         case PRTF:
         {
-            auto tmp = VMM_ARG(sp, pc); /* 利用之后的ADJ清栈指令知道函数调用的参数个数 */
-            ax = printf(vmm_getstr(VMM_ARGS(tmp, 1)), VMM_ARGS(tmp, 2), VMM_ARGS(tmp, 3), VMM_ARGS(tmp, 4), VMM_ARGS(tmp, 5), VMM_ARGS(tmp, 6));
+            init_args(args, sp, pc);
+            ax = printf(vmm_getstr(args[0]), args[1], args[2], args[3], args[4], args[5]);
         }
         break;
         case EXIT:
@@ -465,38 +502,41 @@ int CVirtualMachine::exec(int entry)
         break;
         case OPEN:
         {
-            auto tmp = VMM_ARG(sp, pc);
-            ax = (int)fopen(vmm_getstr(VMM_ARGS(tmp, 1)), "r");
+            init_args(args, sp, pc);
+            ax = (int)fopen(vmm_getstr(args[0]), "r");
         }
         break;
         case READ:
         {
-            auto tmp = VMM_ARG(sp, pc);
-            ax = (int)fread((void*)VMM_ARGS(tmp, 2), VMM_ARGS(tmp, 3), 1, (FILE*)VMM_ARGS(tmp, 1));
+            init_args(args, sp, pc);
+            ax = (int)fread(vmm_getstr(args[1]), (size_t)args[2], 1, (FILE*)args[0]);
         }
         break;
         case CLOS:
         {
-            auto tmp = VMM_ARG(sp, pc);
-            ax = (int)fclose((FILE*)VMM_ARGS(tmp, 1));
+            init_args(args, sp, pc);
+            ax = (int)fclose((FILE*)args[0]);
         }
         break;
         case MALC:
         {
-            auto tmp = VMM_ARG(sp, pc);
-            ax = (int)vmm_malloc(VMM_ARGS(tmp, 1));
+            init_args(args, sp, pc);
+            ax = (int)vmm_malloc((uint32_t)args[0]);
         }
         break;
         case MSET:
         {
-            auto tmp = VMM_ARG(sp, pc);
-            ax = (int)vmm_memset(VMM_ARGS(tmp, 1), VMM_ARGS(tmp, 2), VMM_ARGS(tmp, 3));
+            init_args(args, sp, pc);
+#if 0
+            printf("MEMSET> PTR=%08X SIZE=%08X VAL=%d\n", (uint32_t)vmm_getstr(args[0]), (uint32_t)args[2], (uint32_t)args[1]);
+#endif
+            ax = (int)vmm_memset(args[0], (uint32_t)args[1], (uint32_t)args[2]);
         }
         break;
         case MCMP:
         {
-            auto tmp = VMM_ARG(sp, pc);
-            ax = (int)vmm_memcmp(VMM_ARGS(tmp, 1), VMM_ARGS(tmp, 2), VMM_ARGS(tmp, 3));
+            init_args(args, sp, pc);
+            ax = (int)vmm_memcmp(args[0], args[1], (uint32_t)args[2]);
         }
         break;
         default:
@@ -507,7 +547,7 @@ int CVirtualMachine::exec(int entry)
             }
         }
 
-#if 0
+#if 1
     {
     printf("\n---------------- STACK BEGIN <<<< \n");
     printf("AX: %08X BP: %08X SP: %08X\n", ax, bp, sp);
