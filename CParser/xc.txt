@@ -107,14 +107,13 @@ void next() {
             // look for existing identifier, linear search
             current_id = symbols;
             while (current_id[Token]) {
-                if (current_id[Hash] == hash && !memcmp((char *)current_id[Name], last_pos, src - last_pos)) {
+                if (current_id[Hash] == hash && memcmp((char *)current_id[Name], last_pos, src - last_pos) == 0) {
                     //found one, return
                     token = current_id[Token];
                     return;
                 }
                 current_id = current_id + IdSize;
             }
-
 
             // store new ID
             current_id[Name] = (int)last_pos;
@@ -345,7 +344,6 @@ void expression(int level) {
         }
         else if (token == '"') {
             // continous string "abc" "abc"
-
 
             // emit code
             *++text = IMM;
@@ -1219,12 +1217,12 @@ int eval() {
 
         // print debug info
         if (debug) {
-            printf("%d> %.4s", cycle,
-                   & "LEA ,IMM ,JMP ,CALL,JZ  ,JNZ ,ENT ,ADJ ,LEV ,LI  ,LC  ,SI  ,SC  ,PUSH,"
-                   "OR  ,XOR ,AND ,EQ  ,NE  ,LT  ,GT  ,LE  ,GE  ,SHL ,SHR ,ADD ,SUB ,MUL ,DIV ,MOD ,"
-                   "OPEN,READ,CLOS,PRTF,MALC,MSET,MCMP,EXIT"[op * 5]);
+            printf("%04d> [%02d] ", cycle, op);
+			printf("%s", trans(& "LEA \0IMM \0JMP \0CALL\0JZ  \0JNZ \0ENT \0ADJ \0LEV \0LI  \0LC  \0SI  \0SC  \0PUSH\0"
+                   "OR  \0XOR \0AND \0EQ  \0NE  \0LT  \0GT  \0LE  \0GE  \0SHL \0SHR \0ADD \0SUB \0MUL \0DIV \0MOD \0"
+                   "OPEN\0READ\0CLOS\0PRTF\0MALC\0MSET\0MCMP\0EXIT"[op * 5]));
             if (op <= ADJ)
-                printf(" %d\n", *pc);
+                printf(" %08X\n", *pc);
             else
                 printf("\n");
         }
@@ -1261,7 +1259,7 @@ int eval() {
         else if (op == DIV) ax = *sp++ / ax;
         else if (op == MOD) ax = *sp++ % ax;
 
-        else if (op == EXIT) { printf("exit(%d)", *sp); return *sp;}
+        else if (op == EXIT) { printf("exit(%d)\n", *sp); return *sp;}
         else if (op == OPEN) { ax = open((char *)sp[1], sp[0]); }
         else if (op == CLOS) { ax = close(*sp);}
         else if (op == READ) { ax = read(sp[2], (char *)sp[1], *sp); }
@@ -1284,6 +1282,8 @@ int main(int argc, char **argv)
     argc--;
     argv++;
 
+	debug = 1;
+
     // parse arguments
     if (argc > 0 && **argv == '-' && (*argv)[1] == 's') {
         assembly = 1;
@@ -1305,7 +1305,7 @@ int main(int argc, char **argv)
         return -1;
     }
 
-    poolsize = 256 * 1024; // arbitrary size
+    poolsize = 16 * 1024; // arbitrary size
     line = 1;
 
     // allocate memory
@@ -1334,7 +1334,7 @@ int main(int argc, char **argv)
     old_text = text;
 
     src = "char else enum if int return sizeof while "
-          "open read close printf malloc memset memcmp exit void main";
+          "open read close printf malloc memset memcmp exit void main ";
 
      // add keywords to symbol table
     i = Char;
@@ -1360,7 +1360,7 @@ int main(int argc, char **argv)
         return -1;
     }
     // read the source file
-    if ((i = read(fd, src, poolsize-1)) <= 0) {
+    if ((i = read(fd, src, 10240)) <= 0) {
         printf("read() returned %d\n", i);
         return -1;
     }
@@ -1382,6 +1382,7 @@ int main(int argc, char **argv)
 
     // setup stack
     sp = (int *)((int)stack + poolsize);
+	*--sp = 0;
     *--sp = EXIT; // call exit if main returns
     *--sp = PUSH; tmp = sp;
     *--sp = argc;

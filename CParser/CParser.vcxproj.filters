@@ -67,7 +67,11 @@
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <Text Include="xc.txt" />
-    <Text Include="test.txt" />
+    <Text Include="test.txt">
+      <Filter>资源文件</Filter>
+    </Text>
+    <Text Include="xc.txt">
+      <Filter>资源文件</Filter>
+    </Text>
   </ItemGroup>
 </Project>

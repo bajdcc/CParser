@@ -58,6 +58,10 @@ void CVirtualMachine::vmm_map(uint32_t va, uint32_t pa, uint32_t flags) {
     else { // pte存在
         pte[pte_idx] = (pa & PAGE_MASK) | PTE_P | flags; // 设置页表项
     }
+
+#if 0
+    printf("MEMMAP> V=%08X P=%08X\n", va, pa);
+#endif
 }
 
 // 释放虚页
@@ -158,6 +162,9 @@ uint32_t CVirtualMachine::vmm_malloc(uint32_t size)
     if (ptr < heapHead)
     {
         heap.alloc_array<byte>(heapHead - ptr);
+#if 0
+        printf("MALLOC> Skip %08X bytes\n", heapHead - ptr);
+#endif
         return vmm_malloc(size);
     }
     if (ptr + size >= heapHead + HEAP_SIZE * PAGE_SIZE)
@@ -165,8 +172,8 @@ uint32_t CVirtualMachine::vmm_malloc(uint32_t size)
         printf("out of memory");
         exit(-1);
     }
-    auto va = vmm_pa2va(HEAP_BASE, HEAP_SIZE, (uint32_t)ptr);
-#if 1
+    auto va = vmm_pa2va(HEAP_BASE, HEAP_SIZE, ((uint32_t)ptr - (uint32_t)heapHead));
+#if 0
     printf("MALLOC> V=%08X P=%p> %08X bytes\n", va, ptr, size);
 #endif
     return va;
@@ -174,6 +181,18 @@ uint32_t CVirtualMachine::vmm_malloc(uint32_t size)
 
 uint32_t CVirtualMachine::vmm_memset(uint32_t va, uint32_t value, uint32_t count)
 {
+#if 0
+    uint32_t pa;
+    if (vmm_ismap(va, &pa))
+    {
+        pa |= OFFSET_INDEX(va);
+        printf("MEMSET> V=%08X P=%08X S=%08X\n", va, pa, count);
+    }
+    else
+    {
+        printf("MEMSET> V=%08X P=ERROR S=%08X\n", va, count);
+    }
+#endif
     for (uint32_t i = 0; i < count; i++)
     {
 #if 0
@@ -188,6 +207,9 @@ uint32_t CVirtualMachine::vmm_memcmp(uint32_t src, uint32_t dst, uint32_t count)
 {
     for (uint32_t i = 0; i < count; i++)
     {
+#if 0
+        printf("MEMCMP> '%c':'%c'\n", vmm_get<byte>(src + i), vmm_get<byte>(dst + i));
+#endif
         if (vmm_get<byte>(src + i) > vmm_get<byte>(dst + i))
             return 1;
         if (vmm_get<byte>(src + i) < vmm_get<byte>(dst + i))
@@ -259,13 +281,19 @@ CVirtualMachine::CVirtualMachine(std::vector<LEX_T(int)> text, std::vector<LEX_T
     }
     /* 映射4KB的栈空间 */
     vmm_map(STACK_BASE, (uint32_t)pmm_alloc(), PTE_U | PTE_P | PTE_R); // 用户栈空间
-    /* 映射16KB的堆空间 */
+                                                                       /* 映射16KB的堆空间 */
     {
-        auto head = heap.alloc_array<byte>(PAGE_SIZE * 5);
-        heapHead = head;
-        heap.free_array(heapHead); // 得到内存池起始地址
+        auto head = heap.alloc_array<byte>(PAGE_SIZE * (HEAP_SIZE + 2));
+#if 0
+        printf("HEAP> ALLOC=%p\n", head);
+#endif
+        heapHead = head; // 得到内存池起始地址
+        heap.free_array(heapHead);
         heapHead = (byte*)PAGE_ALIGN_UP((uint32_t)head);
-        memset(heapHead, 0, PAGE_SIZE);
+#if 0
+        printf("HEAP> HEAD=%p\n", heapHead);
+#endif
+        memset(heapHead, 0, PAGE_SIZE * HEAP_SIZE);
         for (int i = 0; i < HEAP_SIZE; ++i)
         {
             vmm_map(HEAP_BASE + PAGE_SIZE * i, (uint32_t)heapHead + PAGE_SIZE * i, PTE_U | PTE_P | PTE_R);
@@ -312,6 +340,7 @@ int CVirtualMachine::exec(int entry)
         vmm_set(argvs + 4, str);
 
         vmm_pushstack(sp, EXIT);
+        vmm_pushstack(sp, PUSH);
         auto tmp = sp;
         vmm_pushstack(sp, 2);
         vmm_pushstack(sp, argvs);
@@ -321,6 +350,7 @@ int CVirtualMachine::exec(int entry)
     auto pc = USER_BASE + entry * INC_PTR;
     auto ax = 0;
     auto bp = 0;
+    auto log = false;
 
     auto cycle = 0;
     uint32_t args[6];
@@ -333,11 +363,12 @@ int CVirtualMachine::exec(int entry)
 #if 1
         assert(op <= EXIT);
         // print debug info
+        if (log)
         {
             printf("%04d> [%08X] %02d %.4s", cycle, pc, op,
                 &"LEA ,IMM ,JMP ,CALL,JZ  ,JNZ ,ENT ,ADJ ,LEV ,LI  ,SI  ,LC  ,SC  ,PUSH,LOAD,"
                 "OR  ,XOR ,AND ,EQ  ,NE  ,LT  ,GT  ,LE  ,GE  ,SHL ,SHR ,ADD ,SUB ,MUL ,DIV ,MOD ,"
-                "OPEN,READ,CLOS,PRTF,MALC,MSET,MCMP,EXIT"[op * 5]);
+                "OPEN,READ,CLOS,PRTF,MALC,MSET,MCMP,EXIT,TRAC,TRAN"[op * 5]);
             if (op == PUSH)
                 printf(" %08X\n", (uint32_t)ax);
             else if (op <= ADJ)
@@ -403,7 +434,7 @@ int CVirtualMachine::exec(int entry)
         {
             vmm_pushstack(sp, pc + INC_PTR);
             pc = base + vmm_get(pc) * INC_PTR;
-#if 1
+#if 0
             printf("CALL> PC=%08X\n", pc);
 #endif
         } /* call subroutine */
@@ -413,7 +444,7 @@ int CVirtualMachine::exec(int entry)
         {
             vmm_pushstack(sp, bp);
             bp = sp;
-            sp = sp - vmm_get(pc) * INC_PTR;
+            sp = sp - vmm_get(pc);
             pc += INC_PTR;
         } /* make new stack frame */
         break;
@@ -428,7 +459,7 @@ int CVirtualMachine::exec(int entry)
             sp = bp;
             bp = vmm_popstack(sp);
             pc = vmm_popstack(sp);
-#if 1
+#if 0
             printf("RETURN> PC=%08X\n", pc);
 #endif
         } /* restore call frame and PC */
@@ -504,12 +535,27 @@ int CVirtualMachine::exec(int entry)
         {
             init_args(args, sp, pc);
             ax = (int)fopen(vmm_getstr(args[0]), "r");
+#if 0
+            printf("OPEN> name=%s fd=%08X\n", vmm_getstr(args[0]), ax);
+#endif
         }
         break;
         case READ:
         {
             init_args(args, sp, pc);
-            ax = (int)fread(vmm_getstr(args[1]), (size_t)args[2], 1, (FILE*)args[0]);
+#if 0
+            printf("READ> src=%p size=%08X fd=%08X\n", vmm_getstr(args[1]), args[2], args[0]);
+#endif
+            ax = (int)fread(vmm_getstr(args[1]), 1, (size_t)args[2], (FILE*)args[0]);
+            if (ax > 0)
+            {
+                rewind((FILE*)args[0]); // 坑：避免重复读取
+                ax = (int)fread(vmm_getstr(args[1]), 1, (size_t)ax, (FILE*)args[0]);
+                vmm_getstr(args[1])[ax] = 0;
+#if 0
+                printf("READ> %s\n", vmm_getstr(args[1]));
+#endif
+            }
         }
         break;
         case CLOS:
@@ -539,24 +585,38 @@ int CVirtualMachine::exec(int entry)
             ax = (int)vmm_memcmp(args[0], args[1], (uint32_t)args[2]);
         }
         break;
+        case TRAC:
+        {
+            init_args(args, sp, pc);
+            ax = log;
+            log = args[0] != 0;
+        }
+        break;
+        case TRAN:
+        {
+            init_args(args, sp, pc);
+            ax = (uint32_t)vmm_getstr(args[0]);
+        }
+        break;
         default:
-            {
-                printf("unknown instruction:%d\n", op);
-                assert(0);
-                exit(-1);
-            }
+        {
+            printf("unknown instruction:%d\n", op);
+            assert(0);
+            exit(-1);
+        }
         }
 
 #if 1
-    {
-    printf("\n---------------- STACK BEGIN <<<< \n");
-    printf("AX: %08X BP: %08X SP: %08X\n", ax, bp, sp);
-    for (uint32_t i = sp; i < STACK_BASE + PAGE_SIZE; i += 4)
-    {
-        printf("[%08X]> %08X\n", i, vmm_get<uint32_t>(i));
-    }
-    printf("---------------- STACK END >>>>\n\n");
-    }
+        if (log)
+        {
+            printf("\n---------------- STACK BEGIN <<<< \n");
+            printf("AX: %08X BP: %08X SP: %08X\n", ax, bp, sp);
+            for (uint32_t i = sp; i < STACK_BASE + PAGE_SIZE; i += 4)
+            {
+                printf("[%08X]> %08X\n", i, vmm_get<uint32_t>(i));
+            }
+            printf("---------------- STACK END >>>>\n\n");
+        }
 #endif
     }
     return 0;

@@ -113,7 +113,7 @@ private:
 
 private:
     /* 内核页表 = PTE_SIZE*PAGE_SIZE */
-    pde_t *pgd_kern;
+    pde_t * pgd_kern;
     /* 内核页表内容 = PTE_COUNT*PTE_SIZE*PAGE_SIZE */
     pde_t *pte_kern;
     /* 物理内存(1 block=16B) */

@@ -77,31 +77,33 @@ void CParser::expression(operator_t level)
             // emit code
             gen.emit(IMM);
             gen.emit(tmp);
-            expr_type = lexer.get_type();
+            expr_type = l_int;
         }
         else if (lexer.is_type(l_string)) // 字符串
         {
-            auto idx = gen.save_string(lexer.get_string());
-#if 1
+           auto s = lexer.get_string();
+#if 0
             printf("[%04d:%03d] String> %04X '%s'\n", lexer.get_line(), lexer.get_column(), idx, lexer.get_string().c_str());
 #endif
-
-            // emit code
-            gen.emit(IMM);
-            gen.emit(idx);
-            gen.emit(LOAD);
             match_type(l_string);
 
             while (lexer.is_type(l_string))
             {
-                idx = gen.save_string(lexer.get_string());
+                s += lexer.get_string();
 #if 0
                 printf("[%04d:%03d] String> %04X '%s'\n", lexer.get_line(), lexer.get_column(), idx, lexer.get_string().c_str());
 #endif
                 match_type(l_string);
             }
 
-            expr_type = l_ptr;
+            auto idx = gen.save_string(s);
+
+            // emit code
+            gen.emit(IMM);
+            gen.emit(idx);
+            gen.emit(LOAD);
+
+            expr_type = l_char;
             ptr_level = 1;
         }
         else if (lexer.is_keyword(k_sizeof)) // sizeof
@@ -158,6 +160,7 @@ void CParser::expression(operator_t level)
                 auto tmp = 0; // number of arguments
                 while (!lexer.is_operator(op_rparan)) // 参数数量
                 {
+                    ptr_level = 0;
                     expression(op_assign);
                     gen.emit(PUSH);
                     tmp++;
@@ -264,7 +267,7 @@ void CParser::expression(operator_t level)
             expression(op_plus_plus);
             ptr_level--;
 
-            gen.emitl(id->ptr > 0 ? l_int : expr_type);
+            gen.emitl((id->ptr > 0) ? ((id->ptr == 1 && expr_type == l_char) ? l_char : l_int) : expr_type);
         }
         else if (lexer.is_operator(op_bit_and)) // 取地址
         {
@@ -365,7 +368,7 @@ void CParser::expression(operator_t level)
             }
             gen.emit(PUSH);
             gen.emit(IMM);
-            gen.emit(ptr_level > 0 ? LEX_SIZEOF(ptr) : 1);
+            gen.emit((ptr_level == 0 || (ptr_level == 1 && expr_type == l_char)) ? 1 : LEX_SIZEOF(ptr));
             gen.emit(tmp == op_plus_plus ? ADD : SUB);
             gen.emits(ptr_level > 0 ? l_int : expr_type);
         }
@@ -389,7 +392,8 @@ void CParser::expression(operator_t level)
             {
                 // var = expr;
                 match_operator(op_assign);
-                if (gen.top() == LI || gen.top() == LC)
+                auto t = gen.top();
+                if (t == LI || t == LC)
                 {
                     gen.top(PUSH); // save the lvalue's pointer
                 }
@@ -397,10 +401,9 @@ void CParser::expression(operator_t level)
                 {
                     error("bad lvalue in assignment");
                 }
-                expression(op_assign);
                 expr_type = tmp;
-                ptr_level = ptr;
-                gen.emits(ptr_level > 0 ? l_int : expr_type);
+                expression(op_assign);
+                gen.emits(t == LI ? l_int : l_char);
             }
             else if (lexer.is_operator(op_query))
             {
@@ -459,7 +462,7 @@ MATCH_BINOP(op_mod, MOD, op_plus_plus)
                 expr_type = l_int;
                 ptr_level = ptr;
                 expr_type = tmp;
-                if (ptr > 0) {
+                if (ptr > 0 && (ptr != 1 || expr_type != l_char)) {
                     gen.emit(PUSH);
                     gen.emit(IMM);
                     gen.emit(LEX_SIZEOF(ptr));
@@ -476,7 +479,7 @@ MATCH_BINOP(op_mod, MOD, op_plus_plus)
                 expr_type = l_int;
                 ptr_level = ptr;
                 expr_type = tmp;
-                if (ptr > 0) {
+                if (ptr > 0 && (ptr != 1 || expr_type != l_char)) {
                     gen.emit(PUSH);
                     gen.emit(IMM);
                     gen.emit(LEX_SIZEOF(ptr));
@@ -533,13 +536,13 @@ MATCH_BINOP(op_mod, MOD, op_plus_plus)
 
                 gen.emit(PUSH);
                 gen.emit(IMM);
-                gen.emit(ptr_level > 0 ? LEX_SIZEOF(ptr) : 1);
+                gen.emit((ptr == 0 || (ptr == 1 && expr_type == l_char)) ? 1 : LEX_SIZEOF(ptr));
                 gen.emit(tmp2 == op_plus_plus ? ADD : SUB);
-                gen.emits(ptr_level > 0 ? l_int : expr_type);
+                gen.emits(ptr > 0 ? l_int : expr_type);
 
                 gen.emit(PUSH);
                 gen.emit(IMM);
-                gen.emit(ptr_level > 0 ? LEX_SIZEOF(ptr) : 1);
+                gen.emit((ptr == 0 || (ptr == 1 && expr_type == l_char)) ? 1 : LEX_SIZEOF(ptr));
                 gen.emit(tmp2 == op_plus_plus ? SUB : ADD);
             }
             else if (lexer.is_operator(op_lsquare))
@@ -553,7 +556,7 @@ MATCH_BINOP(op_mod, MOD, op_plus_plus)
                 if (ptr > 0)
                 {
                     // pointer, `not char *`
-                    if (id->type != l_char)
+                    if (ptr > 1 || (ptr == 1 && tmp != l_char))
                     {
                         gen.emit(PUSH);
                         gen.emit(IMM);
@@ -692,6 +695,7 @@ void CParser::statement()
         expression(op_assign);
         match_operator(op_semi);
     }
+    ptr_level = 0;
 }
 
 // 枚举声明
@@ -762,6 +766,7 @@ void CParser::function_parameter()
         // 保存本地变量
         // 这里为什么要多设个地方保存之前的值，是因为变量有域(大括号划分)的限制
         // 进入一个函数体时，全局变量需要保存，退出函数体时恢复
+        params += 4;
         id->_cls = id->cls; id->cls = Loc;
         id->_type = id->type; id->type = type;
         id->_value._int = id->value._int; id->value._int = params; // 变量在栈上地址
@@ -821,12 +826,11 @@ void CParser::function_body()
                 // 保存本地变量
                 // 这里为什么要多设个地方保存之前的值，是因为变量有域(大括号划分)的限制
                 // 进入一个函数体时，全局变量需要保存，退出函数体时恢复
+                pos_local += 4;
                 id->_cls = id->cls; id->cls = Loc;
                 id->_type = id->type; id->type = type;
                 id->_value._int = id->value._int; id->value._int = pos_local;  // 参数在栈上地址
                 id->_ptr = id->ptr; id->ptr = ptr;
-
-                pos_local += 4;
 
                 if (lexer.is_operator(op_comma))
                 {
@@ -929,20 +933,17 @@ void CParser::global_declaration()
         {
             id->cls = Fun;
             id->value._int = gen.index(); // 记录函数地址
-#if 1
+#if 0
             printf("[%04d:%03d] Function> %04X '%s'\n", lexer.get_line(), lexer.get_column(), id->value._int * 4, id->name.c_str());
 #endif
             function_declaration();
-#if 1
-            printf("[%04d:%03d] Function> %04X '%s'\n", lexer.get_line(), lexer.get_column(), id->value._int * 4, id->name.c_str());
-#endif
         }
         else
         {
             // 处理变量声明
             id->cls = Glo; // 全局变量
             id->value._int = gen.get_data(); // 记录变量地址
-#if 1
+#if 0
             printf("[%04d:%03d] Global> %04X '%s'\n", lexer.get_line(), lexer.get_column(), id->value._int, id->name.c_str());
 #endif
         }
@@ -1019,4 +1020,5 @@ void CParser::error(string_t info)
 {
     printf("[%04d:%03d] ERROR: %s\n", lexer.get_line(), lexer.get_column(), info.c_str());
     assert(0);
+    exit(-1);
 }

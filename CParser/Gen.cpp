@@ -175,6 +175,8 @@ void CGen::builtin()
     builtin_add("read", Sys, l_int, READ);
     builtin_add("close", Sys, l_int, CLOS);
     builtin_add("malloc", Sys, l_int, MALC);
+    builtin_add("trace", Sys, l_int, TRAC);
+    builtin_add("trans", Sys, l_int, TRAN);
 }
 
 void CGen::builtin_add(string_t name, class_t cls, lexer_t type, LEX_T(int) value)
