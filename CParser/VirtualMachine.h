@@ -68,6 +68,8 @@ typedef uint32_t pte_t;
 #define HEAP_BASE 0xf0000000
 /* 用户堆大小 */
 #define HEAP_SIZE 1000
+/* 段掩码 */
+#define SEGMENT_MASK 0x0fffffff
 
 /* 物理内存(单位：16B) */
 #define PHY_MEM (16 * 1024)

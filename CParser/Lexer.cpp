@@ -105,6 +105,8 @@ lexer_t CLexer::next()
     else if (isdigit(c)) // Êý×Ö
     {
         type = next_digit();
+		if (type == l_operator)
+			type = next_operator();
     }
     else if (isspace(c)) // ¿Õ°××Ö·û
     {
@@ -384,7 +386,7 @@ lexer_t CLexer::next_digit()
     else if (std::regex_search(str.cbegin() + index, str.cend(), sm, r_digit))
     {
         auto s = sm[1].str();
-        auto type = l_error;
+		auto type = l_error;
         if (sm[4].matched)
         {
             if (!sm[3].matched)

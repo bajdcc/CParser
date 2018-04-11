@@ -766,7 +766,6 @@ void CParser::function_parameter()
         // 保存本地变量
         // 这里为什么要多设个地方保存之前的值，是因为变量有域(大括号划分)的限制
         // 进入一个函数体时，全局变量需要保存，退出函数体时恢复
-        params += 4;
         id->_cls = id->cls; id->cls = Loc;
         id->_type = id->type; id->type = type;
         id->_value._int = id->value._int; id->value._int = params; // 变量在栈上地址

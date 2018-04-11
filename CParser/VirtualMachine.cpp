@@ -145,7 +145,7 @@ void CVirtualMachine::vmm_setstr(uint32_t va, const char *value)
 
 uint32_t vmm_pa2va(uint32_t base, uint32_t size, uint32_t pa)
 {
-    return base + (pa & (size * PAGE_SIZE - 1));
+    return base + (pa & (SEGMENT_MASK));
 }
 
 uint32_t CVirtualMachine::vmm_malloc(uint32_t size)
@@ -352,6 +352,19 @@ int CVirtualMachine::exec(int entry)
     auto bp = 0;
     auto log = false;
 
+#if 1
+	if (log)
+	{
+		printf("\n---------------- STACK BEGIN <<<< \n");
+		printf("AX: %08X BP: %08X SP: %08X\n", ax, bp, sp);
+		for (uint32_t i = sp; i < STACK_BASE + PAGE_SIZE; i += 4)
+		{
+			printf("[%08X]> %08X\n", i, vmm_get<uint32_t>(i));
+		}
+		printf("---------------- STACK END >>>>\n\n");
+	}
+#endif
+
     auto cycle = 0;
     uint32_t args[6];
     while (true)
@@ -368,7 +381,7 @@ int CVirtualMachine::exec(int entry)
             printf("%04d> [%08X] %02d %.4s", cycle, pc, op,
                 &"LEA ,IMM ,JMP ,CALL,JZ  ,JNZ ,ENT ,ADJ ,LEV ,LI  ,SI  ,LC  ,SC  ,PUSH,LOAD,"
                 "OR  ,XOR ,AND ,EQ  ,NE  ,LT  ,GT  ,LE  ,GE  ,SHL ,SHR ,ADD ,SUB ,MUL ,DIV ,MOD ,"
-                "OPEN,READ,CLOS,PRTF,MALC,MSET,MCMP,EXIT,TRAC,TRAN"[op * 5]);
+                "OPEN,READ,CLOS,PRTF,MALC,MSET,MCMP,TRAC,TRAN,EXIT"[op * 5]);
             if (op == PUSH)
                 printf(" %08X\n", (uint32_t)ax);
             else if (op <= ADJ)
@@ -521,7 +534,7 @@ int CVirtualMachine::exec(int entry)
             // --------------------------------------
         case PRTF:
         {
-            init_args(args, sp, pc);
+			init_args(args, sp, pc);
             ax = printf(vmm_getstr(args[0]), args[1], args[2], args[3], args[4], args[5]);
         }
         break;
@@ -600,6 +613,11 @@ int CVirtualMachine::exec(int entry)
         break;
         default:
         {
+			printf("AX: %08X BP: %08X SP: %08X PC: %08X\n", ax, bp, sp, pc);
+			for (uint32_t i = sp; i < STACK_BASE + PAGE_SIZE; i += 4)
+			{
+				printf("[%08X]> %08X\n", i, vmm_get<uint32_t>(i));
+			}
             printf("unknown instruction:%d\n", op);
             assert(0);
             exit(-1);
@@ -610,7 +628,7 @@ int CVirtualMachine::exec(int entry)
         if (log)
         {
             printf("\n---------------- STACK BEGIN <<<< \n");
-            printf("AX: %08X BP: %08X SP: %08X\n", ax, bp, sp);
+            printf("AX: %08X BP: %08X SP: %08X PC: %08X\n", ax, bp, sp, pc);
             for (uint32_t i = sp; i < STACK_BASE + PAGE_SIZE; i += 4)
             {
                 printf("[%08X]> %08X\n", i, vmm_get<uint32_t>(i));
