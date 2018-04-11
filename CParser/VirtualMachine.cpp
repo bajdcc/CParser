@@ -2,7 +2,7 @@
 #include "VirtualMachine.h"
 
 int g_argc;
-int g_argv;
+char** g_argv;
 
 #define LOG 0
 #define INC_PTR 4
@@ -331,18 +331,18 @@ int CVirtualMachine::exec(int entry)
     auto sp = stack + poolsize; // 4KB / sizeof(int) = 1024
 
     {
-        auto argvs = vmm_malloc(2 * INC_PTR);
-        auto str = vmm_malloc(2);
-        vmm_setstr(str, "\0");
-        vmm_set(argvs, str);
-        str = vmm_malloc(10);
-        vmm_setstr(str, "test.txt");
-        vmm_set(argvs + 4, str);
+        auto argvs = vmm_malloc(g_argc * INC_PTR);
+		for (auto i = 0; i < g_argc; i++)
+		{
+			auto str = vmm_malloc(256);
+			vmm_setstr(str, g_argv[i]);
+			vmm_set(argvs + INC_PTR * i, str);
+		}
 
         vmm_pushstack(sp, EXIT);
         vmm_pushstack(sp, PUSH);
         auto tmp = sp;
-        vmm_pushstack(sp, 2);
+        vmm_pushstack(sp, g_argc);
         vmm_pushstack(sp, argvs);
         vmm_pushstack(sp, tmp);
     }

@@ -411,6 +411,7 @@ void CParser::expression(operator_t level)
                 match_operator(op_query);
                 gen.emit(JZ);
                 auto addr = gen.index();
+				gen.emit(-1);
                 expression(op_assign);
 
                 if (lexer.is_operator(op_colon))
@@ -422,11 +423,12 @@ void CParser::expression(operator_t level)
                     error("missing colon in conditional");
                 }
 
-                gen.emit(gen.index() + 3, addr);
+                gen.emit(gen.index() + 2, addr);
                 gen.emit(JMP);
                 addr = gen.index();
+				gen.emit(-1);
                 expression(op_query);
-                gen.emit(gen.index() + 1, addr);
+                gen.emit(gen.index(), addr);
             }
 #define MATCH_BINOP(op, inc, pred) \
     else if (lexer.is_operator(op)) { \

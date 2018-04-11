@@ -1309,7 +1309,7 @@ int main(int argc, char **argv)
     argc--;
     argv++;
 
-    debug = 1;
+    debug = 0;
 
     // parse arguments
     if (argc > 0 && **argv == '-' && (*argv)[1] == 's') {
