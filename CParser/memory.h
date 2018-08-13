@@ -1,260 +1,230 @@
-#ifndef __STD_MEMORY_H
-#define __STD_MEMORY_H
+ï»¿//
+// Project: CMiniLang
+// Author: bajdcc
+//
+
+#ifndef CMINILANG_MEMORY_H
+#define CMINILANG_MEMORY_H
 
 #include "types.h"
 
-namespace clib
-{
-    namespace memory
-    {
-        using namespace type;
+namespace clib {
+    // é»˜è®¤çš„å†…å­˜åˆ†é…ç­–ç•¥
+    template<size_t DefaultSize = 0x10000>
+    class default_allocator {
+    public:
+        static const size_t DEFAULT_ALLOC_BLOCK_SIZE = DefaultSize;
 
-        // Ä¬ÈÏµÄÄÚ´æ·ÖÅä²ßÂÔ
-        template<size_t DefaultSize = 0x10000>
-        class default_allocator
-        {
-        public:
-            static const size_t DEFAULT_ALLOC_BLOCK_SIZE = DefaultSize;
+        template<class T>
+        T *__alloc() {
+            return new T;
+        }
 
-            template<class T>
-            T* __alloc()
-            {
-                return new T;
-            }
+        template<class T>
+        T *__alloc_array(uint size) {
+            return new T[size];
+        }
 
-            template<class T>
-            T* __alloc_array(uint size)
-            {
-                return new T[size];
-            }
+        template<class T, class ... TArgs>
+        T *__alloc_args(const TArgs &&... args) {
+            return new T(std::forward(args)...);
+        }
 
-            template<class T, class ... TArgs>
-            T* __alloc_args(const TArgs&& ... args)
-            {
-                return new T(std::forward(args)...);
-            }
+        template<class T, class ... TArgs>
+        T *__alloc_array_args(uint size, const TArgs &&... args) {
+            return new T[size];
+        }
 
-            template<class T, class ... TArgs>
-            T* __alloc_array_args(uint size, const TArgs&& ... args)
-            {
-                return new T[size];
-            }
+        template<class T>
+        bool __free(T *t) {
+            delete t;
+            return true;
+        }
 
-            template<class T>
-            bool __free(T* t)
-            {
-                delete t;
-                return true;
-            }
+        template<class T>
+        bool __free_array(T *t) {
+            delete[] t;
+            return true;
+        }
+    };
 
-            template<class T>
-            bool __free_array(T* t)
-            {
-                delete[] t;
-                return true;
-            }
+    // åŸå§‹å†…å­˜æ± 
+    template<class Allocator, size_t DefaultSize = Allocator::DEFAULT_ALLOC_BLOCK_SIZE>
+    class legacy_memory_pool {
+        // å—
+        struct block {
+            size_t size; // æ•°æ®éƒ¨åˆ†çš„å¤§å°
+            uint flag;   // å‚æ•°
+            block *prev; // å‰æŒ‡é’ˆ
+            block *next; // åæŒ‡é’ˆ
         };
 
-        // Ô­Ê¼ÄÚ´æ³Ø
-        template<class Allocator, size_t DefaultSize = Allocator::DEFAULT_ALLOC_BLOCK_SIZE>
-        class legacy_memory_pool
-        {
-            // ¿é
-            struct block
-            {
-                size_t size; // Êı¾İ²¿·ÖµÄ´óĞ¡
-                uint flag;   // ²ÎÊı
-                block *prev; // Ç°Ö¸Õë
-                block *next; // ºóÖ¸Õë
-            };
+        // å—å‚æ•°
+        enum block_flag {
+            BLOCK_USING = 0
+        };
 
-            // ¿é²ÎÊı
-            enum block_flag
-            {
-                BLOCK_USING = 0
-            };
+        // å†…å­˜ç®¡ç†æ¥å£
+        Allocator allocator;
 
-            // ÄÚ´æ¹ÜÀí½Ó¿Ú
-            Allocator allocator;
+        // å—çš„å…ƒä¿¡æ¯éƒ¨åˆ†çš„å¤§å°
+        static const size_t BLOCK_SIZE = sizeof(block);
+        // å—å¤§å°æ©ç 
+        static const uint BLOCK_SIZE_MASK = BLOCK_SIZE - 1;
 
-            // ¿éµÄÔªĞÅÏ¢²¿·ÖµÄ´óĞ¡
-            static const size_t BLOCK_SIZE = sizeof(block);
-            // ¿é´óĞ¡ÑÚÂë
-            static const uint BLOCK_SIZE_MASK = BLOCK_SIZE - 1;
+        // å—é“¾è¡¨å¤´æŒ‡é’ˆ
+        block *block_head;
+        // ç”¨äºå¾ªç¯éå†çš„æŒ‡é’ˆ
+        block *block_current;
+        // ç©ºé—²å—æ•°
+        size_t block_available_size;
 
-            // ¿éÁ´±íÍ·Ö¸Õë
-            block *block_head;
-            // ÓÃÓÚÑ­»·±éÀúµÄÖ¸Õë
-            block *block_current;
-            // ¿ÕÏĞ¿éÊı
-            size_t block_available_size;
+        // ------------------------ //
 
-            // ------------------------ //
+        // å—å¤§å°å¯¹é½
+        static size_t block_align(size_t size) {
+            if ((size & BLOCK_SIZE_MASK) == 0)
+                return size / BLOCK_SIZE;
+            return (size / BLOCK_SIZE) + 1;
+        }
 
-            // ¿é´óĞ¡¶ÔÆë
-            static size_t block_align(size_t size)
-            {
-                if ((size & BLOCK_SIZE_MASK) == 0)
-                    return size / BLOCK_SIZE;
-                return (size / BLOCK_SIZE) + 1;
+        // å—åˆå§‹åŒ–
+        static void block_init(block *blk, size_t size) {
+            blk->size = size;
+            blk->flag = 0;
+            blk->prev = nullptr;
+            blk->next = nullptr;
+        }
+
+        // å—è¿æ¥
+        static void block_connect(block *blk, block *new_blk) {
+            new_blk->prev = blk;
+            new_blk->next = blk->next;
+            new_blk->next->prev = new_blk;
+            blk->next = new_blk;
+        }
+
+        // äºŒå—åˆå¹¶
+        static size_t block_merge(block *blk, block *next) {
+            auto tmp = next->size + 1;
+            next->prev = blk;
+            blk->size += tmp;
+            blk->next = next->next;
+            return tmp;
+        }
+
+        // ä¸‰å—åˆå¹¶
+        static size_t block_merge(block *prev, block *blk, block *next) {
+            auto tmp = blk->size + next->size + 2;
+            next->prev = prev;
+            prev->size += tmp;
+            prev->next = next->next;
+            return tmp;
+        }
+
+        // å—è®¾ç½®å‚æ•°
+        static void block_set_flag(block *blk, block_flag flag, uint value) {
+            if (value) {
+                blk->flag |= 1 << flag;
+            } else {
+                blk->flag &= ~(1 << flag);
             }
+        }
 
-            // ¿é³õÊ¼»¯
-            static void block_init(block *blk, size_t size)
-            {
-                blk->size = size;
-                blk->flag = 0;
-                blk->prev = nullptr;
-                blk->next = nullptr;
-            }
+        // å—è·å–å‚æ•°
+        static uint block_get_flag(block *blk, block_flag flag) {
+            return (blk->flag & (1 << flag)) != 0 ? 1 : 0;
+        }
 
-            // ¿éÁ¬½Ó
-            static void block_connect(block *blk, block *new_blk)
-            {
-                new_blk->prev = blk;
-                new_blk->next = blk->next;
-                new_blk->next->prev = new_blk;
-                blk->next = new_blk;
-            }
+        // ------------------------ //
 
-            // ¶ş¿éºÏ²¢
-            static size_t block_merge(block *blk, block *next)
-            {
-                auto tmp = next->size + 1;
-                next->prev = blk;
-                blk->size += tmp;
-                blk->next = next->next;
-                return tmp;
-            }
+        // åˆ›å»ºå†…å­˜æ± 
+        void _create() {
+            block_head = allocator.template __alloc_array<block>(DEFAULT_ALLOC_BLOCK_SIZE);
+            _init();
+        }
 
-            // Èı¿éºÏ²¢
-            static size_t block_merge(block *prev, block *blk, block *next)
-            {
-                auto tmp = blk->size + next->size + 2;
-                next->prev = prev;
-                prev->size += tmp;
-                prev->next = next->next;
-                return tmp;
-            }
+        // åˆå§‹åŒ–å†…å­˜æ± 
+        void _init() {
+            block_available_size = DEFAULT_ALLOC_BLOCK_SIZE - 1;
+            block_init(block_head, block_available_size);
+            block_head->prev = block_head->next = block_head;
+            block_current = block_head;
+        }
 
-            // ¿éÉèÖÃ²ÎÊı
-            static void block_set_flag(block *blk, block_flag flag, uint value)
-            {
-                if (value)
-                {
-                    blk->flag |= 1 << flag;
-                }
-                else
-                {
-                    blk->flag &= ~(1 << flag);
-                }
-            }
+        // é”€æ¯å†…å­˜æ± 
+        void _destroy() {
+            allocator.__free_array(block_head);
+        }
 
-            // ¿é»ñÈ¡²ÎÊı
-            static uint block_get_flag(block *blk, block_flag flag)
-            {
-                return (blk->flag & (1 << flag)) != 0 ? 1 : 0;
-            }
-
-            // ------------------------ //
-
-            // ´´½¨ÄÚ´æ³Ø
-            void _create()
-            {
-                block_head = allocator.template __alloc_array<block>(DEFAULT_ALLOC_BLOCK_SIZE);
-                _init();
-            }
-
-            // ³õÊ¼»¯ÄÚ´æ³Ø
-            void _init()
-            {
-                block_available_size = DEFAULT_ALLOC_BLOCK_SIZE - 1;
-                block_init(block_head, block_available_size);
-                block_head->prev = block_head->next = block_head;
-                block_current = block_head;
-            }
-
-            // Ïú»ÙÄÚ´æ³Ø
-            void _destroy()
-            {
-                allocator.__free_array(block_head);
-            }
-
-            // ÉêÇëÄÚ´æ
-            void* _alloc(size_t size)
-            {
-                if (size == 0)
-                    return nullptr;
-                auto old_size = size;
-                size = block_align(size);
-                if (size >= block_available_size)
-                    return nullptr;
-                if (block_current == block_head)
-                    return alloc_free_block(size);
-                auto blk = block_current;
-                do
-                {
-                    if (block_get_flag(blk, BLOCK_USING) == 0 && blk->size >= size)
-                    {
-                        block_current = blk;
-                        return alloc_free_block(size);
-                    }
-                    blk = blk->next;
-                } while (blk != block_current);
+        // ç”³è¯·å†…å­˜
+        void *_alloc(size_t size) {
+            if (size == 0)
                 return nullptr;
-            }
-
-            // ²éÕÒ¿ÕÏĞ¿é
-            void* alloc_free_block(size_t size)
-            {
-                if (block_current->size == size) // ÉêÇëµÄ´óĞ¡ÕıºÃÊÇ¿ÕÏĞ¿é´óĞ¡
-                {
-                    return alloc_cur_block(size + 1);
+            auto old_size = size;
+            size = block_align(size);
+            if (size >= block_available_size)
+                return nullptr;
+            if (block_current == block_head)
+                return alloc_free_block(size);
+            auto blk = block_current;
+            do {
+                if (block_get_flag(blk, BLOCK_USING) == 0 && blk->size >= size) {
+                    block_current = blk;
+                    return alloc_free_block(size);
                 }
-                // ÉêÇëµÄ¿Õ¼äĞ¡ÓÚ¿ÕÏĞ¿é´óĞ¡£¬½«¿ÕÏĞ¿é·ÖÁÑ
-                auto new_size = block_current->size - size - 1;
-                if (new_size == 0)
-                    return alloc_cur_block(size); // ·ÖÁÑºóµÄĞÂ¿é¿Õ¼ä¹ıµÍ£¬·ÅÆú·ÖÁÑ
-                block *new_blk = block_current + size + 1;
-                block_init(new_blk, new_size);
-                block_connect(block_current, new_blk);
-                return alloc_cur_block(size);
-            }
+                blk = blk->next;
+            } while (blk != block_current);
+            return nullptr;
+        }
 
-            // Ö±½ÓÊ¹ÓÃµ±Ç°µÄ¿ÕÏĞ¿é
-            void* alloc_cur_block(size_t size)
+        // æŸ¥æ‰¾ç©ºé—²å—
+        void *alloc_free_block(size_t size) {
+            if (block_current->size == size) // ç”³è¯·çš„å¤§å°æ­£å¥½æ˜¯ç©ºé—²å—å¤§å°
             {
-                // Ö±½ÓÊ¹ÓÃ¿ÕÏĞ¿é
-                block_set_flag(block_current, BLOCK_USING, 1); // ÉèÖÃ±êÖ¾Îª¿ÉÓÃ
-                block_current->size = size;
-                block_available_size -= size + 1;
-                auto cur = static_cast<void*>(block_current + 1);
-                block_current = block_current->next; // Ö¸ÏòºóÒ»¸ö¿é
-                return cur;
+                return alloc_cur_block(size + 1);
             }
+            // ç”³è¯·çš„ç©ºé—´å°äºç©ºé—²å—å¤§å°ï¼Œå°†ç©ºé—²å—åˆ†è£‚
+            auto new_size = block_current->size - size - 1;
+            if (new_size == 0)
+                return alloc_cur_block(size); // åˆ†è£‚åçš„æ–°å—ç©ºé—´è¿‡ä½ï¼Œæ”¾å¼ƒåˆ†è£‚
+            block *new_blk = block_current + size + 1;
+            block_init(new_blk, new_size);
+            block_connect(block_current, new_blk);
+            return alloc_cur_block(size);
+        }
 
-            // ÊÍ·ÅÄÚ´æ
-            bool _free(void* p)
+        // ç›´æ¥ä½¿ç”¨å½“å‰çš„ç©ºé—²å—
+        void *alloc_cur_block(size_t size) {
+            // ç›´æ¥ä½¿ç”¨ç©ºé—²å—
+            block_set_flag(block_current, BLOCK_USING, 1); // è®¾ç½®æ ‡å¿—ä¸ºå¯ç”¨
+            block_current->size = size;
+            block_available_size -= size + 1;
+            auto cur = static_cast<void *>(block_current + 1);
+            block_current = block_current->next; // æŒ‡å‘åä¸€ä¸ªå—
+            return cur;
+        }
+
+        // é‡Šæ”¾å†…å­˜
+        bool _free(void *p) {
+            block *blk = static_cast<block *>(p);
+            --blk; // è‡ªå‡å¾—åˆ°å—çš„å…ƒä¿¡æ¯å¤´
+            if (!verify_address(blk))
+                return false;
+            if (blk->next == blk) // åªæœ‰ä¸€ä¸ªå—
             {
-                block *blk = static_cast<block*>(p);
-                --blk; // ×Ô¼õµÃµ½¿éµÄÔªĞÅÏ¢Í·
-                if (!verify_address(blk))
-                    return false;
-                if (blk->next == blk) // Ö»ÓĞÒ»¸ö¿é
-                {
-                    block_set_flag(blk, BLOCK_USING, 0);
-                    return true;
-                }
-                if (blk->prev == blk->next && block_get_flag(blk->prev, BLOCK_USING) == 0) // Ö»ÓĞÁ½¸ö¿é
-                {
-                    _init(); // Á½¸ö¿é¶¼¿ÕÏĞ£¬Ö±½Ó³õÊ¼»¯
-                    return true;
-                }
-                auto is_prev_free = block_get_flag(blk->prev, BLOCK_USING) == 0 && blk->prev < blk;
-                auto is_next_free = block_get_flag(blk->next, BLOCK_USING) == 0 && blk < blk->next;
-                auto bit = (is_prev_free << 1) + is_next_free;
-                switch (bit)
-                {
+                block_set_flag(blk, BLOCK_USING, 0);
+                return true;
+            }
+            if (blk->prev == blk->next && block_get_flag(blk->prev, BLOCK_USING) == 0) // åªæœ‰ä¸¤ä¸ªå—
+            {
+                _init(); // ä¸¤ä¸ªå—éƒ½ç©ºé—²ï¼Œç›´æ¥åˆå§‹åŒ–
+                return true;
+            }
+            auto is_prev_free = block_get_flag(blk->prev, BLOCK_USING) == 0 && blk->prev < blk;
+            auto is_next_free = block_get_flag(blk->next, BLOCK_USING) == 0 && blk < blk->next;
+            auto bit = (is_prev_free << 1) + is_next_free;
+            switch (bit) {
                 case 0:
                     block_available_size += blk->size + 1;
                     block_set_flag(blk, BLOCK_USING, 0);
@@ -270,166 +240,143 @@ namespace clib
                     break;
                 default:
                     break;
-                }
-                return true;
             }
+            return true;
+        }
 
-            // ÑéÖ¤µØÖ·ÊÇ·ñºÏ·¨
-            bool verify_address(block *blk)
-            {
-                if (blk < block_head || blk > block_head + DEFAULT_ALLOC_MEMORY_SIZE - 1)
-                    return false;
-                return (blk->next->prev == blk) && (blk->prev->next == blk) && (block_get_flag(blk, BLOCK_USING) == 1);
+        // éªŒè¯åœ°å€æ˜¯å¦åˆæ³•
+        bool verify_address(block *blk) {
+            if (blk < block_head || blk > block_head + DEFAULT_ALLOC_MEMORY_SIZE - 1)
+                return false;
+            return (blk->next->prev == blk) && (blk->prev->next == blk) && (block_get_flag(blk, BLOCK_USING) == 1);
+        }
+
+        // é‡æ–°åˆ†é…å†…å­˜
+        void *_realloc(void *p, uint newSize, uint clsSize) {
+            block *blk = static_cast<block *>(p);
+            --blk; // è‡ªå‡å¾—åˆ°å—çš„å…ƒä¿¡æ¯å¤´
+            if (!verify_address(blk))
+                return nullptr;
+            auto size = block_align(newSize * clsSize); // è®¡ç®—æ–°çš„å†…å­˜å¤§å°
+            auto _new = _alloc(size);
+            if (!_new) {
+                // ç©ºé—´ä¸è¶³
+                _free(blk);
+                return nullptr;
             }
+            auto oldSize = blk->size;
+            memmove(_new, p, sizeof(block) * __min(oldSize, size)); // ç§»åŠ¨å†…å­˜
+            _free(p);
+            return _new;
+        }
 
-            // ÖØĞÂ·ÖÅäÄÚ´æ
-            void* _realloc(void* p, uint newSize, uint clsSize)
-            {
-                block *blk = static_cast<block*>(p);
-                --blk; // ×Ô¼õµÃµ½¿éµÄÔªĞÅÏ¢Í·
-                if (!verify_address(blk))
-                    return nullptr;
-                auto size = block_align(newSize * clsSize); // ¼ÆËãĞÂµÄÄÚ´æ´óĞ¡
-                auto _new = _alloc(size);
-                if (!_new)
-                {
-                    // ¿Õ¼ä²»×ã
-                    _free(blk);
-                    return nullptr;
-                }
-                auto oldSize = blk->size;
-                memmove(_new, p, sizeof(block) * __min(oldSize, size)); // ÒÆ¶¯ÄÚ´æ
-                _free(p);
-                return _new;
+    public:
+
+        // é»˜è®¤çš„å—æ€»æ•°
+        static const size_t DEFAULT_ALLOC_BLOCK_SIZE = DefaultSize;
+        // é»˜è®¤çš„å†…å­˜æ€»é‡
+        static const size_t DEFAULT_ALLOC_MEMORY_SIZE = BLOCK_SIZE * DEFAULT_ALLOC_BLOCK_SIZE;
+
+        legacy_memory_pool() {
+            _create();
+        }
+
+        ~legacy_memory_pool() {
+            _destroy();
+        }
+
+        template<class T>
+        T *alloc() {
+            return static_cast<T *>(_alloc(sizeof(T)));
+        }
+
+        template<class T>
+        T *alloc_array(uint count) {
+            return static_cast<T *>(_alloc(count * sizeof(T)));
+        }
+
+        template<class T, class ...TArgs>
+        T *alloc_args(const TArgs &&... args) {
+            T *obj = static_cast<T *>(_alloc(sizeof(T)));
+            (*obj)(std::forward(args)...);
+            return obj;
+        }
+
+        template<class T, class ...TArgs>
+        T *alloc_array_args(uint count, const TArgs &&... args) {
+            T *obj = static_cast<T *>(_alloc(count * sizeof(T)));
+            for (uint i = 0; i < count; ++i) {
+                (obj[i])(std::forward(args)...);
             }
+            return obj;
+        }
 
-        public:
+        template<class T>
+        T *realloc(T *obj, uint newSize) {
+            return static_cast<T *>(_realloc(obj, newSize, sizeof(T)));
+        }
 
-            // Ä¬ÈÏµÄ¿é×ÜÊı
-            static const size_t DEFAULT_ALLOC_BLOCK_SIZE = DefaultSize;
-            // Ä¬ÈÏµÄÄÚ´æ×ÜÁ¿
-            static const size_t DEFAULT_ALLOC_MEMORY_SIZE = BLOCK_SIZE * DEFAULT_ALLOC_BLOCK_SIZE;
+        template<class T>
+        bool free(T *obj) {
+            return _free(obj);
+        }
 
-            legacy_memory_pool()
-            {
-                _create();
-            }
+        template<class T>
+        bool free_array(T *obj) {
+            return _free(obj);
+        }
 
-            ~legacy_memory_pool()
-            {
-                _destroy();
-            }
+        size_t available() const {
+            return block_available_size;
+        }
+    };
 
-            template<class T>
-            T* alloc()
-            {
-                return static_cast<T*>(_alloc(sizeof(T)));
-            }
+    // åŸºäºåŸå§‹å†…å­˜æ± çš„å†…å­˜åˆ†é…ç­–ç•¥
+    template<class Allocator = default_allocator<>, size_t DefaultSize = Allocator::DEFAULT_ALLOC_BLOCK_SIZE>
+    class legacy_memory_pool_allocator {
+        legacy_memory_pool<Allocator, DefaultSize> memory_pool;
 
-            template<class T>
-            T* alloc_array(uint count)
-            {
-                return static_cast<T*>(_alloc(count * sizeof(T)));
-            }
+    public:
+        static const size_t DEFAULT_ALLOC_BLOCK_SIZE = DefaultSize - 2;
 
-            template<class T, class ...TArgs>
-            T* alloc_args(const TArgs&& ... args)
-            {
-                T* obj = static_cast<T*>(_alloc(sizeof(T)));
-                (*obj)(std::forward(args)...);
-                return obj;
-            }
+        template<class T>
+        T *__alloc() {
+            return memory_pool.template alloc<T>();
+        }
 
-            template<class T, class ...TArgs>
-            T* alloc_array_args(uint count, const TArgs&& ... args)
-            {
-                T* obj = static_cast<T*>(_alloc(count * sizeof(T)));
-                for (uint i = 0; i < count; ++i)
-                {
-                    (obj[i])(std::forward(args)...);
-                }
-                return obj;
-            }
+        template<class T>
+        T *__alloc_array(uint count) {
+            return memory_pool.template alloc_array<T>(count);
+        }
 
-            template<class T>
-            T* realloc(T* obj, uint newSize)
-            {
-                return static_cast<T*>(_realloc(obj, newSize, sizeof(T)));
-            }
+        template<class T, class ... TArgs>
+        T *__alloc_args(const TArgs &&... args) {
+            return memory_pool.template alloc_args<T>(std::forward(args)...);
+        }
 
-            template<class T>
-            bool free(T* obj)
-            {
-                return _free(obj);
-            }
+        template<class T, class ... TArgs>
+        T *__alloc_array_args(uint count, const TArgs &&... args) {
+            return memory_pool.template alloc_array_args<T>(count, std::forward(args)...);
+        }
 
-            template<class T>
-            bool free_array(T* obj)
-            {
-                return _free(obj);
-            }
+        template<class T>
+        T *__realloc(T *t, uint newSize) {
+            return memory_pool.template realloc<T>(t, newSize);
+        }
 
-            size_t available() const
-            {
-                return block_available_size;
-            }
-        };
+        template<class T>
+        bool __free(T *t) {
+            return memory_pool.free(t);
+        }
 
-        // »ùÓÚÔ­Ê¼ÄÚ´æ³ØµÄÄÚ´æ·ÖÅä²ßÂÔ
-        template<class Allocator = default_allocator<>, size_t DefaultSize = Allocator::DEFAULT_ALLOC_BLOCK_SIZE>
-        class legacy_memory_pool_allocator
-        {
-            legacy_memory_pool<Allocator, DefaultSize> memory_pool;
+        template<class T>
+        bool __free_array(T *t) {
+            return memory_pool.free_array(t);
+        }
+    };
 
-        public:
-            static const size_t DEFAULT_ALLOC_BLOCK_SIZE = DefaultSize - 2;
-
-            template<class T>
-            T* __alloc()
-            {
-                return memory_pool.template alloc<T>();
-            }
-
-            template<class T>
-            T* __alloc_array(uint count)
-            {
-                return memory_pool.template alloc_array<T>(count);
-            }
-
-            template<class T, class ... TArgs>
-            T* __alloc_args(const TArgs&& ... args)
-            {
-                return memory_pool.template alloc_args<T>(std::forward(args)...);
-            }
-
-            template<class T, class ... TArgs>
-            T* __alloc_array_args(uint count, const TArgs&& ... args)
-            {
-                return memory_pool.template alloc_array_args<T>(count, std::forward(args)...);
-            }
-
-            template<class T>
-            T* __realloc(T* t, uint oldSize, uint newSize)
-            {
-                return memory_pool.template realloc<T>(t, oldSize, newSize);
-            }
-
-            template<class T>
-            bool __free(T* t)
-            {
-                return memory_pool.free(t);
-            }
-
-            template<class T>
-            bool __free_array(T* t)
-            {
-                return memory_pool.free_array(t);
-            }
-        };
-
-        template<size_t DefaultSize = default_allocator<>::DEFAULT_ALLOC_BLOCK_SIZE>
-        using memory_pool = legacy_memory_pool<legacy_memory_pool_allocator<default_allocator<>, DefaultSize>>;
-    }
+    template<size_t DefaultSize = default_allocator<>::DEFAULT_ALLOC_BLOCK_SIZE>
+    using memory_pool = legacy_memory_pool<legacy_memory_pool_allocator<default_allocator<>, DefaultSize>>;
 }
 
-#endif
+#endif //CMINILANG_MEMORY_H

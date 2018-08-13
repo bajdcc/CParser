@@ -1,369 +1,165 @@
+﻿//
+// Project: CMiniLang
+// Author: bajdcc
+//
+
 #include "stdafx.h"
 #include "types.h"
 
-string_t lexer_string_list[] =
-{
-    "none",
-    "ptr",
-    "error",
-    "char",
-    "uchar",
-    "short",
-    "ushort",
-    "int",
-    "uint",
-    "long",
-    "ulong",
-    "float",
-    "double",
-    "operator",
-    "keyword",
-    "identifier",
-    "string",
-    "comment",
-    "space",
-    "newline",
-    "END"
-};
+namespace clib {
+    string_t lexer_string_list[] = {
+        "none",
+        "ptr",
+        "error",
+        "char",
+        "uchar",
+        "short",
+        "ushort",
+        "int",
+        "uint",
+        "long",
+        "ulong",
+        "float",
+        "double",
+        "operator",
+        "keyword",
+        "identifier",
+        "string",
+        "comment",
+        "space",
+        "newline",
+        "END"
+    };
 
-const string_t& lexer_typestr(lexer_t type)
-{
-    assert(type >= l_none && type < l_end);
-    return lexer_string_list[type];
-}
-
-string_t keyword_string_list[] =
-{
-    "@START",
-    "auto",
-    "bool",
-    "break",
-    "case",
-    "char",
-    "const",
-    "continue",
-    "default",
-    "do",
-    "double",
-    "else",
-    "enum",
-    "extern",
-    "false",
-    "float",
-    "for",
-    "goto",
-    "if",
-    "int",
-    "long",
-    "register",
-    "return",
-    "short",
-    "signed",
-    "sizeof",
-    "static",
-    "struct",
-    "switch",
-    "true",
-    "typedef",
-    "union",
-    "unsigned",
-    "void",
-    "volatile",
-    "while",
-    "@END",
-};
-
-const string_t& lexer_keywordstr(keyword_t type)
-{
-    assert(type > k__start && type < k__end);
-    return keyword_string_list[type - k__start - 1];
-}
-
-string_t lexer_keyword_regex()
-{
-    string_t str;
-    for (auto i = k__start + 1; i < k__end; i++)
-    {
-        str += "(^";
-        str += keyword_string_list[i];
-        str += "$)|";
+    const string_t &lexer_typestr(lexer_t type) {
+        assert(type >= l_none && type < l_end);
+        return lexer_string_list[type];
     }
-    str.erase(str.length() - 1);
-    return str;
-}
 
-string_t operator_string_list[] =
-{
-    "@START",
-    "=",
-    "+",
-    "-",
-    "*",
-    "/",
-    "\\",
-    "?",
-    "%",
-    "&",
-    "|",
-    "~",
-    "^",
-    "!",
-    "<",
-    ">",
-    "(",
-    ")",
-    "{",
-    "}",
-    "[",
-    "]",
-    "",
-    ".",
-    ";",
-    ":",
-    "==",
-    "!=",
-    "++",
-    "--",
-    "+=",
-    "-=",
-    "*=",
-    "/=",
-    "&=",
-    "|=",
-    "^=",
-    "%=",
-    "<=",
-    ">=",
-    "&&",
-    "||",
-    "->",
-    "<<",
-    ">>",
-    "<<=",
-    ">>=",
-    "...",
-    "@END",
-};
+    string_t keyword_string_list[] = {
+        "@START",
+        "auto",
+        "bool",
+        "break",
+        "case",
+        "char",
+        "const",
+        "continue",
+        "default",
+        "do",
+        "double",
+        "else",
+        "enum",
+        "extern",
+        "false",
+        "float",
+        "for",
+        "goto",
+        "if",
+        "int",
+        "long",
+        "register",
+        "return",
+        "short",
+        "signed",
+        "sizeof",
+        "static",
+        "struct",
+        "switch",
+        "true",
+        "typedef",
+        "union",
+        "unsigned",
+        "void",
+        "volatile",
+        "while",
+        "@END",
+    };
 
-string_t opname_string_list[] =
-{
-    "@START",
-    "assign",
-    "plus",
-    "minus",
-    "times",
-    "divide",
-    "escape",
-    "query",
-    "mod",
-    "bit_and",
-    "bit_or",
-    "bit_not",
-    "bit_xor",
-    "logical_not",
-    "less_than",
-    "greater_than",
-    "lparan",
-    "rparan",
-    "lbrace",
-    "rbrace",
-    "lsquare",
-    "rsquare",
-    "comma",
-    "dot",
-    "semi",
-    "colon",
-    "equal",
-    "not_equal",
-    "plus_plus",
-    "minus_minus",
-    "plus_assign",
-    "minus_assign",
-    "times_assign",
-    "div_assign",
-    "and_assign",
-    "or_assign",
-    "xor_assign",
-    "mod_assign",
-    "less_than_or_equal",
-    "greater_than_or_equal",
-    "logical_and",
-    "logical_or",
-    "pointer",
-    "left_shift",
-    "right_shift",
-    "left_shift_assign",
-    "right_shift_assign",
-    "ellipsis",
-    "@END",
-};
-
-string_t operator_esc_string_list[] =
-{
-    "@START",
-    "=",
-    "\\+",
-    "-",
-    "\\*",
-    "/",
-    "\\\\",
-    "\\?",
-    "%",
-    "&",
-    "\\|",
-    "~",
-    "\\^",
-    "!",
-    "<",
-    ">",
-    "\\(",
-    "\\)",
-    "\\{",
-    "\\}",
-    "\\[",
-    "\\]",
-    ",",
-    "\\.",
-    ";",
-    ":",
-    "==",
-    "!=",
-    "\\+\\+",
-    "--",
-    "\\+=",
-    "-=",
-    "\\*=",
-    "/=",
-    "&=",
-    "\\|=",
-    "\\^=",
-    "%=",
-    "\\<=",
-    "\\>=",
-    "&&",
-    "\\|\\|",
-    "->",
-    "<<",
-    ">>",
-    "<<=",
-    ">>=",
-    "\\.\\.\\.",
-    "@END",
-};
-
-const string_t& lexer_opstr(operator_t type)
-{
-    assert(type > op__start && type < op__end);
-    return operator_string_list[type];
-}
-
-const string_t& lexer_opnamestr(operator_t type)
-{
-    assert(type > op__start && type < op__end);
-    return opname_string_list[type];
-}
-
-int op_len_start_idx[] =
-{
-    op__start,
-    op_assign,
-    op_equal,
-    op_left_shift_assign,
-    op__end
-};
-
-int lexer_operator_start_idx(int len)
-{
-    assert(len >= 0 && len <= 4);
-    return op_len_start_idx[len];
-}
-
-string_t lexer_operator_regex(int len)
-{
-    assert(len >= 1 && len <= 3);
-    string_t str;
-    for (auto i = op_len_start_idx[len]; i < op_len_start_idx[len + 1]; i++)
-    {
-        str += "(^";
-        str += operator_esc_string_list[i];
-        str += "$)|";
+    const string_t &lexer_keywordstr(keyword_t type) {
+        assert(type > k__start && type < k__end);
+        return keyword_string_list[type - k__start];
     }
-    str.erase(str.length() - 1);
-    return str;
-}
 
-string_t err_string_list[] =
-{
-    "@START",
-    "invalid character",
-    "invalid operator",
-    "invalid comment",
-    "invalid digit",
-    "invalid string",
-    "@END",
-};
+    std::tuple<operator_t, string_t, string_t, int> operator_string_list[] = {
+        std::make_tuple(op__start, "@START", "@START", 9999),
+        std::make_tuple(op_assign, "=", "assign", 1401),
+        std::make_tuple(op_equal, "==", "equal", 701),
+        std::make_tuple(op_plus, "+", "plus", 401),
+        std::make_tuple(op_plus_assign, "+=", "plus_assign", 1405),
+        std::make_tuple(op_minus, "-", "minus", 402),
+        std::make_tuple(op_minus_assign, "-=", "minus_assign", 1406),
+        std::make_tuple(op_times, "*", "times", 302),
+        std::make_tuple(op_times_assign, "*=", "times_assign", 1403),
+        std::make_tuple(op_divide, "/", "divide", 301),
+        std::make_tuple(op_div_assign, "/=", "div_assign", 1402),
+        std::make_tuple(op_bit_and, "&", "bit_and", 801),
+        std::make_tuple(op_and_assign, "&=", "and_assign", 1409),
+        std::make_tuple(op_bit_or, "|", "bit_or", 1001),
+        std::make_tuple(op_or_assign, "|=", "or_assign", 1411),
+        std::make_tuple(op_bit_xor, "^", "bit_xor", 901),
+        std::make_tuple(op_xor_assign, "^=", "xor_assign", 1410),
+        std::make_tuple(op_mod, "%", "mod", 303),
+        std::make_tuple(op_mod_assign, "%=", "mod_assign", 1404),
+        std::make_tuple(op_less_than, "<", "less_than", 603),
+        std::make_tuple(op_less_than_or_equal, "<=", "less_than_or_equal", 604),
+        std::make_tuple(op_greater_than, ">", "greater_than", 601),
+        std::make_tuple(op_greater_than_or_equal, ">=", "greater_than_or_equal", 602),
+        std::make_tuple(op_logical_not, "!", "logical_not", 207),
+        std::make_tuple(op_not_equal, "!=", "not_equal", 702),
+        std::make_tuple(op_escape, "\\", "escape", 9000),
+        std::make_tuple(op_query, "?", "query", 1301),
+        std::make_tuple(op_bit_not, "~", "bit_not", 208),
+        std::make_tuple(op_lparan, "(", "lparan", 102),
+        std::make_tuple(op_rparan, ")", "rparan", 102),
+        std::make_tuple(op_lbrace, "{", "lbrace", 9000),
+        std::make_tuple(op_rbrace, "}", "rbrace", 9000),
+        std::make_tuple(op_lsquare, "[", "lsquare", 101),
+        std::make_tuple(op_rsquare, "]", "rsquare", 101),
+        std::make_tuple(op_comma, ",", "comma", 1501),
+        std::make_tuple(op_dot, ".", "dot", 103),
+        std::make_tuple(op_semi, ";", "semi", 9000),
+        std::make_tuple(op_colon, ":", "colon", 1302),
+        std::make_tuple(op_plus_plus, "++", "plus_plus", 203),
+        std::make_tuple(op_minus_minus, "--", "minus_minus", 204),
+        std::make_tuple(op_logical_and, "&&", "logical_and", 1101),
+        std::make_tuple(op_logical_or, "||", "logical_or", 1201),
+        std::make_tuple(op_pointer, "->", "pointer", 104),
+        std::make_tuple(op_left_shift, "<<", "left_shift", 501),
+        std::make_tuple(op_right_shift, ">>", "right_shift", 502),
+        std::make_tuple(op_left_shift_assign, "<<=", "left_shift_assign", 1407),
+        std::make_tuple(op_right_shift_assign, ">>=", "right_shift_assign", 1408),
+        std::make_tuple(op_ellipsis, "...", "ellipsis", 9000),
+        std::make_tuple(op__end, "@END", "@END", 9999),
+    };
 
-const string_t& lexer_errstr(error_t type)
-{
-    assert(type > e__start && type < e__end);
-    return err_string_list[type];
-}
+    const string_t &lexer_opstr(operator_t type) {
+        assert(type > op__start && type < op__end);
+        return std::get<1>(operator_string_list[type]);
+    }
 
-int op_pred[] =
-{
-    9999, // op__start,
-    1401, // op_assign,
-     401, // op_plus,
-     402, // op_minus,
-     302, // op_times,
-     301, // op_divide,
-    9000, // op_escape,
-    1301, // op_query,
-     303, // op_mod,
-     801, // op_bit_and,
-    1001, // op_bit_or,
-     208, // op_bit_not,
-     901, // op_bit_xor,
-     207, // op_logical_not,
-     603, // op_less_than,
-     601, // op_greater_than,
-     102, // op_lparan,
-     102, // op_rparan,
-    9000, // op_lbrace,
-    9000, // op_rbrace,
-     101, // op_lsquare,
-     101, // op_rsquare,
-    1501, // op_comma,
-     103, // op_dot,
-    9000, // op_semi,
-    1302, // op_colon,
-     701, // op_equal,
-     702, // op_not_equal,
-     203, // op_plus_plus,
-     204, // op_minus_minus,
-    1405, // op_plus_assign,
-    1406, // op_minus_assign,
-    1403, // op_times_assign,
-    1402, // op_div_assign,
-    1409, // op_and_assign,
-    1411, // op_or_assign,
-    1410, // op_xor_assign,
-    1404, // op_mod_assign,
-     604, // op_less_than_or_equal,
-     602, // op_greater_than_or_equal,
-    1101, // op_logical_and,
-    1201, // op_logical_or,
-     104, // op_pointer,
-     501, // op_left_shift,
-     502, // op_right_shift,
-    1407, // op_left_shift_assign,
-    1408, // op_right_shift_assign,
-    9000, // op_ellipsis,
-    9999, // op__end
-};
+    const string_t &lexer_opnamestr(operator_t type) {
+        assert(type > op__start && type < op__end);
+        return std::get<2>(operator_string_list[type]);
+    }
 
-int lexer_operatorpred(operator_t type)
-{
-    assert(type > op__start && type < op__end);
-    return op_pred[type];
+    string_t err_string_list[] = {
+        "@START",
+        "#E !char!",
+        "#E !operator!",
+        "#E !comment!",
+        "#E !digit!",
+        "#E !string!",
+        "@END",
+    };
+
+    const string_t &lexer_errstr(error_t type) {
+        assert(type > e__start && type < e__end);
+        return err_string_list[type];
+    }
+
+    int lexer_operatorpred(operator_t type) {
+        assert(type > op__start && type < op__end);
+        return std::get<3>(operator_string_list[type]);
+    }
 }

@@ -21,22 +21,22 @@
     <ClInclude Include="targetver.h">
       <Filter>头文件</Filter>
     </ClInclude>
-    <ClInclude Include="Lexer.h">
-      <Filter>头文件</Filter>
-    </ClInclude>
-    <ClInclude Include="Parser.h">
-      <Filter>头文件</Filter>
-    </ClInclude>
     <ClInclude Include="types.h">
       <Filter>头文件</Filter>
     </ClInclude>
-    <ClInclude Include="Gen.h">
-      <Filter>头文件</Filter>
-    </ClInclude>
-    <ClInclude Include="VirtualMachine.h">
-      <Filter>头文件</Filter>
-    </ClInclude>
     <ClInclude Include="memory.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="cgen.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="clexer.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="cparser.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="cvm.h">
       <Filter>头文件</Filter>
     </ClInclude>
   </ItemGroup>
@@ -44,25 +44,22 @@
     <ClCompile Include="stdafx.cpp">
       <Filter>源文件</Filter>
     </ClCompile>
-    <ClCompile Include="Lexer.cpp">
-      <Filter>源文件</Filter>
-    </ClCompile>
-    <ClCompile Include="Parser.cpp">
-      <Filter>源文件</Filter>
-    </ClCompile>
     <ClCompile Include="types.cpp">
-      <Filter>源文件</Filter>
-    </ClCompile>
-    <ClCompile Include="test.cpp">
       <Filter>源文件</Filter>
     </ClCompile>
     <ClCompile Include="main.cpp">
       <Filter>源文件</Filter>
     </ClCompile>
-    <ClCompile Include="Gen.cpp">
+    <ClCompile Include="cgen.cpp">
       <Filter>源文件</Filter>
     </ClCompile>
-    <ClCompile Include="VirtualMachine.cpp">
+    <ClCompile Include="clexer.cpp">
+      <Filter>源文件</Filter>
+    </ClCompile>
+    <ClCompile Include="cparser.cpp">
+      <Filter>源文件</Filter>
+    </ClCompile>
+    <ClCompile Include="cvm.cpp">
       <Filter>源文件</Filter>
     </ClCompile>
   </ItemGroup>

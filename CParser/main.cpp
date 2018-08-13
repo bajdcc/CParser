@@ -1,5 +1,10 @@
+﻿//
+// Project: CMiniLang
+// Author: bajdcc
+//
+
 #include "stdafx.h"
-#include "Parser.h"
+#include "cparser.h"
 
 extern int g_argc;
 extern char** g_argv;
@@ -43,30 +48,36 @@ int main()
     printf("##### fibonacci #####\n");
     while (i <= 10) {
         printf("fibonacci(%2d) = %d\n", i, fibonacci(i));
-        i = i + 1;
+        i++;
     }
     printf("##### hanoi #####\n");
     hanoi(3, 'A', 'B', 'C');
     return 0;
 })";
-    string_t txt2 = R"(
-int main(int argc, char **argv)
-{
-    return 0;
-})";
 #if 0
-    CParser p(txt2);
+    try {
+        clib::cparser p(txt);
+    } catch (const std::exception& e) {
+        printf("ERROR: %s\n", e.what());
+    }
 #else
-	g_argc--;
-	g_argv++;
-	if (g_argc < 1) {
-		printf("usage: cparser file ...\n");
-		return -1;
-	}
+    g_argc--;
+    g_argv++;
+    if (g_argc < 1) {
+        printf("Usage: CMiniLang file ...\n");
+        return -1;
+    }
     std::ifstream in(*g_argv);
     std::istreambuf_iterator<char> beg(in), end;
     std::string str(beg, end);
-    CParser p(str);
+    if (str.empty()) {
+        exit(-1);
+    }
+    try {
+        clib::cparser p(str);
+    } catch (const std::exception& e) {
+        printf("ERROR: %s\n", e.what());
+    }
 #endif
     return 0;
 }
